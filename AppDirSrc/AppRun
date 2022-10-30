@@ -1,0 +1,19 @@
+#!/bin/sh
+
+SELF=$(readlink -f "$0")
+export HERE=${SELF%/*}
+
+# since the ELF interpreter (=ld-linux.so) is at a relative path we must set the
+# current directory to the root of the AppDir for the whole runtime
+
+# store the current directory we had, the user may want to use paths relative to that
+export ORIGDIR=`pwd`
+
+pushd "${HERE}" >/dev/null
+
+"${HERE}/usr/bin/bash" "${HERE}/usr/bin/sysrescueusbwriter" "$@"
+RET=$?
+
+popd >/dev/null
+
+exit $RET

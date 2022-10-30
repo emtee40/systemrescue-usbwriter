@@ -1,0 +1,25 @@
+# no shebang supported here, can only be directly called with the correct shell (=bash)
+
+# AppImage demo application
+
+echo "script $0 called: $*"
+
+echo "1: $1"
+echo "2: $2"
+
+pwd
+echo
+
+echo "original dir: $ORIGDIR"
+
+echo
+
+${HERE}/usr/bin/mcopy
+
+${HERE}/usr/bin/xorriso
+
+echo
+
+ls
+
+exit 17

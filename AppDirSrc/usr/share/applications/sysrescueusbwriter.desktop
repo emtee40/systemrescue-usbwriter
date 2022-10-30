@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=SystemRescue USB writer
+Exec=sysrescueusbwriter
+Icon=sysrescueusbwriter
+Type=Application
+Categories=Utility;
+Terminal=true
+X-AppImage-Name=SystemRescue USB writer
+X-AppImage-Version=0.1
+X-AppImage-Arch=x86_64

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="console-application">
+  <id>org.system_rescue.systemrescue_usb_writer</id>
+  
+  <name>SystemRescue USB writer</name>
+  <summary>Write SystemRescue .iso-images to USB media</summary>
+  
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  
+  <description>
+    <p>
+      Takes an .iso-image of SystemRescue and writes it to a USB memory stick. The USB memory stick is formatted as FAT32, so it is fully writeable. This is an advantage compared to copying the .iso-image with &quot;dd&quot; or similar methods that retain the ISO9660 filesystem which is read-only.
+    </p>
+    <p>
+      SystemRescue (formerly known as SystemRescueCd) is a Linux system rescue toolkit available as a bootable medium for administrating or repairing your system and data after a crash. It aims to provide an easy way to carry out admin tasks on your computer, such as creating and editing the hard disk partitions.
+    </p>
+  </description>
+  
+  <icon type="stock">sysrescueusbwriter</icon>
+  
+  <categories>
+    <category>Utility</category>
+    <category>FileTools</category>
+  </categories>
+
+  <content_rating type="oars-1.0" />
+  
+  <url type="homepage">https://www.system-rescue.org</url>
+  
+  <provides>
+    <binary>sysrescueusbwriter</binary>
+  </provides>
+</component>
