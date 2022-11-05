@@ -32,7 +32,7 @@ cp -R ${HERE}/AppDirSrc/* ${HERE}/AppDirBuild/
 # install binaries
 declare -a install_bins
 install_bins=(
-    xorriso sfdisk syslinux mcopy mformat mtools bash dd mktemp
+    xorriso sfdisk syslinux mcopy mformat mtools bash dd mktemp lsblk
 )
 
 for bin in "${install_bins[@]}"; do
@@ -60,6 +60,9 @@ install_libs=(
     libsmartcols
     libuuid
     libblkid
+    libmount
+    libudev
+    libgcc_s
 )
 
 for lib in "${install_libs[@]}"; do

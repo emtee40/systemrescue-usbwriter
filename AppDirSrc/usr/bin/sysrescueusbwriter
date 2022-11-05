@@ -31,9 +31,53 @@ fi
 # abort on failures
 set -o errexit -o pipefail -o noclobber -o nounset
 
-# TODO: check size & access rights for the $TARGETDEV
+if ! [[ -r "$ISOIMAGE" ]]; then
+    echo "ERROR: not enough permissions to read $ISOIMAGE"
+    exit 2
+fi
 
-# TODO: check if $TARGETDEV is mounted somehow
+if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
+    echo "ERROR: not enough permissions to access $TARGETDEV"
+    exit 2
+fi
+
+TARGETDEVSIZE=$("${APPDIR}/usr/bin/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
+ISOSIZE=$(stat --format=%s "$ISOIMAGE")
+# require gracious 50 MB tolerance to account for filesystem metadata and partitioning
+if [[ "${TARGETDEVSIZE}" -lt $[$ISOSIZE+52428800] ]]; then
+    echo "ERROR: $TARGETDEV is too small for the given iso image"
+    exit 2
+fi
+
+if "${APPDIR}/usr/bin/lsblk" -o PKNAME --noheadings --nodeps "$TARGETDEV" | grep -q -E -v "^\$" ; then
+    echo "ERROR: $TARGETDEV is not a raw device but a partition"
+    exit 2
+fi
+
+if "${APPDIR}/usr/bin/lsblk" -o MOUNTPOINTS --noheadings "$TARGETDEV" | grep -q -E -v "^\$" ; then
+    echo "ERROR: $TARGETDEV (or a partition of it) is currently mounted"
+    exit 2
+fi
+
+if "${APPDIR}/usr/bin/lsblk" -o RO --noheadings --nodeps "$TARGETDEV" | grep -q "1" ; then
+    echo "ERROR: $TARGETDEV is read-only"
+    exit 2
+fi
+
+if ! "${APPDIR}/usr/bin/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | grep -q "1" ; then
+    echo "WARNING: $TARGETDEV is not a removable or hotplug device"
+    
+    read -p "Are you sure you want to overwrite it (y/n)? " answer
+    case ${answer:0:1} in
+        y|Y )
+            echo Ok
+        ;;
+        * )
+            echo "Aborting"
+            exit 1
+        ;;
+    esac
+fi
 
 # check if we really have an iso file as source and not something else
 if ! "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
@@ -61,14 +105,28 @@ mkdir -p "${TMPDIR}/filesystem"
 "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd"
 "${APPDIR}/usr/bin/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE
 
-# TODO: check if the iso is compatible with this version of sysrescueusbwriter
+# TODO: better check that is not hardcoded on version, but detects syslinux version, iso layout and architecture
+if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]] || \
+   ! grep -q "9.05" "${TMPDIR}/filesystem/sysresccd/VERSION" ; then
+    echo "ERROR: iso image is not compatible with this script. It only works with SystemRescue 9.05"
+    exit 2
+fi
 
-# TODO: grep from iso data extracted above
-PARTLABEL=RESCUE905
+PARTLABEL=$(grep -E "Volume Id *:" "${TMPDIR}/meta-pvd" | sed -e "s/^Volume Id *: \(.*\)/\1/")
 
-# TODO: ask for user confirmation before overwriting
+read -p "Are you sure you want to overwrite all content of $TARGETDEV (y/n)? " answer
+case ${answer:0:1} in
+    y|Y )
+        echo Ok
+    ;;
+    * )
+        echo "Aborting"
+        exit 1
+    ;;
+esac
 
 # partition & format target dev
+# size not given means until the end of the device
 "${APPDIR}/usr/bin/sfdisk" --wipe always --wipe-partitions always "${TARGETDEV}" <<EOF
 label: dos
 unit: sectors
