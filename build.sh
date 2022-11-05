@@ -32,7 +32,7 @@ cp -R ${HERE}/AppDirSrc/* ${HERE}/AppDirBuild/
 # install binaries
 declare -a install_bins
 install_bins=(
-    xorriso sfdisk syslinux mcopy mtools bash dd mktemp lsblk mkfs.fat cmp find
+    xorriso sfdisk syslinux mcopy mtools bash dd mktemp lsblk mkfs.fat cmp find df
 )
 
 for bin in "${install_bins[@]}"; do

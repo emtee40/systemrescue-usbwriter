@@ -94,17 +94,25 @@ if ! [[ -v TMPDIR ]] || [[ -z "$TMPDIR" ]]; then
     TMPDIR=/tmp
 fi
 
+# check free space on temp dir
+TMPSPACE=$("${APPDIR}/usr/bin/df" --block-size=1 --output=avail "$TMPDIR" | grep -v "Avail")
+# require gracious 50 MB tolerance to account for filesystem metadata and inefficiency
+if [[ "${TMPSPACE}" -lt $[$ISOSIZE+52428800] ]]; then
+    echo "ERROR: not enough space on $TMPDIR"
+    exit 2
+fi
+
 # always create a subdir below a given TMPDIR for security/reliability reasons
 TMPDIR=$("${APPDIR}/usr/bin/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
 # errors during main execution will leave the TMPDIR behind
 # useful for finding out what went wrong, but has to be cleaned manually
 
-# TODO: check free space on ${TMPDIR}
+echo "Unpacking iso image..."
 
 # unpack iso image
 mkdir -p "${TMPDIR}/filesystem"
-"${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd"
-"${APPDIR}/usr/bin/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE
+"${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd" 2>/dev/null
+"${APPDIR}/usr/bin/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE 2>/dev/null
 
 # TODO: better check that is not hardcoded on version, but detects syslinux version, iso layout and architecture
 if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]] || \
@@ -133,7 +141,7 @@ esac
 
 # partition & format target dev
 # size not given means until the end of the device
-"${APPDIR}/usr/bin/sfdisk" --wipe always --wipe-partitions always "${TARGETDEV}" <<EOF
+"${APPDIR}/usr/bin/sfdisk" --wipe always --wipe-partitions always --quiet "${TARGETDEV}" <<EOF
 label: dos
 unit: sectors
 sector-size: 512
@@ -141,31 +149,37 @@ sector-size: 512
 img1 : start=        2048, type=c, bootable
 EOF
 
-# the filesystems begins at sector 2048, fix backup boot sector at 6 (see below)
-"${APPDIR}/usr/bin/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}"
+# the filesystem begins at sector 2048, fix backup boot sector at 6 (see below)
+"${APPDIR}/usr/bin/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
+
+echo "Copying files..."
 
 # copy all files
 # TODO: quote source dir, probably need to list all first level contents separately
 # TODO: print progress, probably by patching mcopy to print a "." every megabyte or something similar
 "${APPDIR}/usr/bin/mcopy" -spQm ${TMPDIR}/filesystem/* -i "${TARGETDEV}@@1048576" ::/
 
+echo "Installing syslinux bootloader..."
+
 # install syslinux on target dev
 "${APPDIR}/usr/bin/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
 
 # install the syslinux MBR, boot from partition 1
-printf '\1' | cat "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${APPDIR}/usr/bin/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}"
+printf '\1' | cat "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${APPDIR}/usr/bin/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}" 2>/dev/null
 
 # syslinux only installs itself to the primary fat boot sector, not the backup boot sector
 # the backup boot sector is at logical sector 6 of the fat32 filesystem, the primary at sector 1
 # copy it over so we get a properly clean filesystem
-"${APPDIR}/usr/bin/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin"
-"${APPDIR}/usr/bin/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}"
+"${APPDIR}/usr/bin/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin" 2>/dev/null
+"${APPDIR}/usr/bin/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}" 2>/dev/null
 
 # write caches to drive
 # usually does not apply when doing direct access to the device handle, but we want to be sure
 sync
 
-# TODO: add patched version of fsck.vfat that can read from offsets and run it
+echo "Verifying data..."
+
+# TODO: add patched version of fsck.vfat that can read from offsets and do a filesystem check
 
 # verify output media content
 "${APPDIR}/usr/bin/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
@@ -177,3 +191,5 @@ done
 
 # everything successful, so we can clean up our temp dir
 rm -rf "${TMPDIR}"
+
+echo "Success"
