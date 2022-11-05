@@ -32,7 +32,7 @@ cp -R ${HERE}/AppDirSrc/* ${HERE}/AppDirBuild/
 # install binaries
 declare -a install_bins
 install_bins=(
-    xorriso sfdisk syslinux mcopy mtools bash
+    xorriso sfdisk syslinux mcopy mformat mtools bash dd mktemp
 )
 
 for bin in "${install_bins[@]}"; do
@@ -108,12 +108,16 @@ done
 
 # set rpath for libraries
 ls -1 "${HERE}/AppDirBuild/usr/lib/" | while read -r line; do
-    if ! ldd "${HERE}/AppDirBuild/usr/lib/${line}" | grep -q -E "(not a dynamic executable|statically linked)"; then
+    if [[ -f "${line}" ]] && ! ldd "${HERE}/AppDirBuild/usr/lib/${line}" | grep -q -E "(not a dynamic executable|statically linked)"; then
     
         # same as with binaries. shared libs don't have an interpreter
         patchelf --set-rpath "\$ORIGIN" --force-rpath "${HERE}/AppDirBuild/usr/lib/${line}"
     fi
 done
+
+# install syslinux boot blocks
+mkdir -p "${HERE}/AppDirBuild/usr/lib/syslinux/bios"
+cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/syslinux/bios/*.bin "${HERE}/AppDirBuild/usr/lib/syslinux/bios/"
 
 # TODO: install all license files
 

@@ -1,25 +1,96 @@
-# no shebang supported here, can only be directly called with the correct shell (=bash)
+# no shebang supported here
+# can only be directly called with the correct shell (=packaged version of bash)
+#
+# sysrescueusbwriter - write an iso image of SystemRescue to USB media
+# 
+# Author: Gerd v. Egidy
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# https://gitlab.com/systemrescue/systemrescue-sources/-/issues/284
 
-# AppImage demo application
+# TODO: add proper argument handling
 
-echo "script $0 called: $*"
+ISOIMAGE="$1"
+TARGETDEV="$2"
+VERBOSE=""
 
-echo "1: $1"
-echo "2: $2"
+# TODO: check for all programs we call from here that aren't packaged in the AppImage
 
-pwd
-echo
+# TODO: both paths could be relative to $OWD, resolve them to absolute
 
-echo "original dir: ${OWD}"
+if ! [[ -f "$ISOIMAGE" ]]; then
+    echo "ERROR: No such file: $ISOIMAGE"
+    exit 1
+fi
 
-echo
+if ! [[ -b "$TARGETDEV" ]]; then
+    echo "ERROR: No such block device: $TARGETDEV"
+    exit 1
+fi
 
-${APPDIR}/usr/bin/mcopy
+# abort on failures
+set -o errexit -o pipefail -o noclobber -o nounset
 
-${APPDIR}/usr/bin/xorriso
+# TODO: check size & access rights for the $TARGETDEV
 
-echo
+# TODO: check if $TARGETDEV is mounted somehow
 
-ls
+# check if we really have an iso file as source and not something else
+if ! "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
+    "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | grep -E "(is blank|Drive address .* rejected)"; then
+    echo "ERROR: $ISOIMAGE is not a valid ISO file"
+    exit 3
+fi
 
-exit 17
+# TODO: opportunistic checkisomd5 verify
+
+# create tmpdir to unpack to
+# default to below /tmp, but allow to change with $TMPDIR
+if ! [[ -v TMPDIR ]] || [[ -z "$TMPDIR" ]]; then
+    TMPDIR=/tmp
+fi
+
+# always create a subdir below a given TMPDIR for security/reliability reasons
+TMPDIR=$("${APPDIR}/usr/bin/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
+# errors during main execution will leave the TMPDIR behind
+# useful for finding out what went wrong, but has to be cleaned manually
+
+# unpack iso image
+mkdir -p "${TMPDIR}/filesystem"
+"${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -report_system_area cmd $VERBOSE >"${TMPDIR}/meta-cmd"
+"${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd"
+"${APPDIR}/usr/bin/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE
+
+# TODO: check if the iso is compatible with this version of sysrescueusbwriter
+
+# TODO: grep from iso data extracted above
+PARTLABEL=RESCUE905
+
+# TODO: ask for user confirmation before overwriting
+
+# partition & format target dev
+"${APPDIR}/usr/bin/sfdisk" --wipe always --wipe-partitions always "${TARGETDEV}" <<EOF
+label: dos
+unit: sectors
+sector-size: 512
+
+img1 : start=        2048, type=c, bootable
+EOF
+
+# format vfat, partition start offset given in bytes (2048 sectors * 512 bytes)
+"${APPDIR}/usr/bin/mformat" -F -v "${PARTLABEL}" -i "${TARGETDEV}@@1048576"
+
+# copy all files
+# TODO: quote source dir, probably need to list all first level contents separately
+# TODO: print progress, probably by patching mcopy to print a "." every megabyte or something similar
+"${APPDIR}/usr/bin/mcopy" -spQm ${TMPDIR}/filesystem/* -i "${TARGETDEV}@@1048576" ::/
+
+# install syslinux on target dev
+"${APPDIR}/usr/bin/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
+
+# install the syslinux MBR, boot from partition 1
+printf '\1' | cat "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${APPDIR}/usr/bin/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}"
+
+# TODO: verify usb media content
+
+# TODO: delete TMPDIR

@@ -6,7 +6,9 @@ It is packaged as AppImage so it can directly run on most Linux systems.
 
 ### Status
 
-Currently only the tooling (=AppImage building) is implemented, not the tool itself.
+Currently only very basic copy is done, many checks and safeties are still missing.
+
+!!! Use with care and don't blame me if you accidently overwrite some important partition !!!
 
 ### Building
 
@@ -18,7 +20,7 @@ Currently only the tooling (=AppImage building) is implemented, not the tool its
 ### Running
 
 - `chmod 755 sysrescueusbwriter-x86_64.AppImage`
-- `./sysrescueusbwriter-x86_64.AppImage`
+- `./sysrescueusbwriter-x86_64.AppImage <iso-image> <target-device>`
 
 ### Limitations
 
