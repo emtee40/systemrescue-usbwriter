@@ -99,9 +99,10 @@ TMPDIR=$("${APPDIR}/usr/bin/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXX
 # errors during main execution will leave the TMPDIR behind
 # useful for finding out what went wrong, but has to be cleaned manually
 
+# TODO: check free space on ${TMPDIR}
+
 # unpack iso image
 mkdir -p "${TMPDIR}/filesystem"
-"${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -report_system_area cmd $VERBOSE >"${TMPDIR}/meta-cmd"
 "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd"
 "${APPDIR}/usr/bin/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE
 
@@ -113,6 +114,11 @@ if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]] || \
 fi
 
 PARTLABEL=$(grep -E "Volume Id *:" "${TMPDIR}/meta-pvd" | sed -e "s/^Volume Id *: \(.*\)/\1/")
+
+if ! echo "$PARTLABEL" | grep -q "^RESCUE" ; then
+    echo "ERROR: can't read iso volume label"
+    exit 1
+fi
 
 read -p "Are you sure you want to overwrite all content of $TARGETDEV (y/n)? " answer
 case ${answer:0:1} in
@@ -135,8 +141,8 @@ sector-size: 512
 img1 : start=        2048, type=c, bootable
 EOF
 
-# format vfat, partition start offset given in bytes (2048 sectors * 512 bytes)
-"${APPDIR}/usr/bin/mformat" -F -v "${PARTLABEL}" -i "${TARGETDEV}@@1048576"
+# the filesystems begins at sector 2048, fix backup boot sector at 6 (see below)
+"${APPDIR}/usr/bin/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}"
 
 # copy all files
 # TODO: quote source dir, probably need to list all first level contents separately
@@ -149,6 +155,25 @@ EOF
 # install the syslinux MBR, boot from partition 1
 printf '\1' | cat "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${APPDIR}/usr/bin/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}"
 
-# TODO: verify usb media content
+# syslinux only installs itself to the primary fat boot sector, not the backup boot sector
+# the backup boot sector is at logical sector 6 of the fat32 filesystem, the primary at sector 1
+# copy it over so we get a properly clean filesystem
+"${APPDIR}/usr/bin/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin"
+"${APPDIR}/usr/bin/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}"
 
-# TODO: delete TMPDIR
+# write caches to drive
+# usually does not apply when doing direct access to the device handle, but we want to be sure
+sync
+
+# TODO: add patched version of fsck.vfat that can read from offsets and run it
+
+# verify output media content
+"${APPDIR}/usr/bin/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
+    if ! "${APPDIR}/usr/bin/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - | "${APPDIR}/usr/bin/cmp" - "${TMPDIR}/filesystem/${line}"; then
+        echo "ERROR: verification mismatch for file ${line}"
+        exit 3
+    fi
+done
+
+# everything successful, so we can clean up our temp dir
+rm -rf "${TMPDIR}"
