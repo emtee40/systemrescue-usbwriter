@@ -10,13 +10,13 @@ echo "2: $2"
 pwd
 echo
 
-echo "original dir: $ORIGDIR"
+echo "original dir: ${OWD}"
 
 echo
 
-${HERE}/usr/bin/mcopy
+${APPDIR}/usr/bin/mcopy
 
-${HERE}/usr/bin/xorriso
+${APPDIR}/usr/bin/xorriso
 
 echo
 
