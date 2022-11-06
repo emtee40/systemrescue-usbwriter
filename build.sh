@@ -47,6 +47,7 @@ install_bins=(
     mkfs.fat
     mktemp
     mtools
+    nnn
     rm
     sed
     sfdisk
@@ -147,6 +148,9 @@ mkdir -p "${HERE}/AppDirBuild/usr/lib/syslinux/bios"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/syslinux/bios/*.bin "${HERE}/AppDirBuild/usr/lib/syslinux/bios/"
 
 # TODO: install all license files
+mkdir -p "${HERE}/AppDirBuild/usr/share/licenses/sysrescueusbwriter"
+cp --no-dereference --preserve=links,mode,ownership,timestamps "${HERE}/LICENSE" "${HERE}/AppDirBuild/usr/share/licenses/sysrescueusbwriter"
+
 
 PATH="./:${PATH}"
 appimagetool-x86_64.AppImage AppDirBuild sysrescueusbwriter-x86_64.AppImage

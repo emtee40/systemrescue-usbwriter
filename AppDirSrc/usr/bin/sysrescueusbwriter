@@ -18,10 +18,14 @@ print_help()
     echo "sysrescueusbwriter - write an iso image of SystemRescue to USB media"
     echo ""
     echo "Usage:"
-    echo "sysrescueusbwriter-x86_64.AppImage [-t|--target=<DEVICE-PATH>] <ISO-FILE>"
+    echo "sysrescueusbwriter-x86_64.AppImage [-t|--target=<DEVICE-PATH>] [-l|--licenses]"
+    echo "                   <ISO-FILE>"
     echo ""
     echo "--target=<DEVICE-PATH>      Device file of the USB media you want to write to."
     echo "                            Something like /dev/sdb"
+    echo ""
+    echo "--licenses                  Show licenses of all programs packaged in the AppImage."
+    echo "                            Use 'e' to view a file and 'q' to quit."
     echo ""
     echo "<ISO-FILE>                  ISO image of SystemRescue"
     echo ""
@@ -41,6 +45,20 @@ argument_error()
     exit 2
 }
 
+show_licenses()
+{
+    # nnn will change the current directory when browsing
+    # this means we can't use any of our packaged binaries
+    # so less as the "editor" used for showing the licenses comes from the host system
+
+    if ! command -v less &>/dev/null ; then
+        echo "ERROR: 'less' command not found. It is required for viewing licenses"
+        exit 1
+    fi
+    
+    EDITOR=less "${BINDIR}/nnn" "${APPDIR}/usr/share/licenses/"
+}
+
 parse_args()
 {
     # adapted from https://stackoverflow.com/a/29754866 by Robert Siemer
@@ -58,8 +76,8 @@ parse_args()
         exit 1
     fi
 
-    local OPTIONS="t:h"
-    local LONGOPTS="target:,help"
+    local OPTIONS="t:lh"
+    local LONGOPTS="target:,license,licenses,help"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
@@ -89,6 +107,10 @@ parse_args()
                 ;;
             -h|--help)
                 print_help
+                exit 0
+                ;;
+            -l|--license|--licenses)
+                show_licenses
                 exit 0
                 ;;
             --)
