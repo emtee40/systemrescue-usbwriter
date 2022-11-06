@@ -16,7 +16,15 @@ ISOIMAGE="$1"
 TARGETDEV="$2"
 VERBOSE=""
 
-# TODO: both paths could be relative to $OWD, resolve them to absolute
+if [[ "$ISOIMAGE" =~ ^[^/] ]]; then
+    # path relative to the dir we were originally called from
+    ISOIMAGE="${OWD}/${ISOIMAGE}"
+fi
+
+if [[ "$TARGETDEV" =~ ^[^/] ]]; then
+    # path relative to the dir we were originally called from
+    TARGETDEV="${OWD}/${TARGETDEV}"
+fi
 
 if ! [[ -f "$ISOIMAGE" ]]; then
     echo "ERROR: No such file: $ISOIMAGE"
@@ -122,8 +130,9 @@ echo "Unpacking iso image..."
 
 # TODO: better check that is not hardcoded on version, but detects syslinux version, iso layout and architecture
 if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]] || \
+   ! [[ -d "${TMPDIR}/filesystem/sysresccd/x86_64" ]] || \
    ! "${BINDIR}/grep" -q "9.05" "${TMPDIR}/filesystem/sysresccd/VERSION" ; then
-    echo "ERROR: iso image is not compatible with this script. It only works with SystemRescue 9.05"
+    echo "ERROR: iso image is not compatible with this script. It only works with SystemRescue 9.05 x86_64"
     exit 2
 fi
 
@@ -160,10 +169,11 @@ EOF
 
 echo "Copying files..."
 
-# copy all files
-# TODO: quote source dir, probably need to list all first level contents separately
+# copy all files from the iso onto the fat partition
+declare -a firstlevel
+readarray -t firstlevel < <("${BINDIR}/find" "${TMPDIR}/filesystem" -maxdepth 1 -mindepth 1)
 # TODO: print progress, probably by patching mcopy to print a "." every megabyte or something similar
-"${BINDIR}/mcopy" -spQm ${TMPDIR}/filesystem/* -i "${TARGETDEV}@@1048576" ::/
+"${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/
 
 echo "Installing syslinux bootloader..."
 
