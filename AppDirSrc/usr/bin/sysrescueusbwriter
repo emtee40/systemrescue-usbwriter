@@ -16,8 +16,6 @@ ISOIMAGE="$1"
 TARGETDEV="$2"
 VERBOSE=""
 
-# TODO: check for all programs we call from here that aren't packaged in the AppImage
-
 # TODO: both paths could be relative to $OWD, resolve them to absolute
 
 if ! [[ -f "$ISOIMAGE" ]]; then
@@ -58,6 +56,12 @@ fi
 
 if "${BINDIR}/lsblk" -o MOUNTPOINTS --noheadings "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
     echo "ERROR: $TARGETDEV (or a partition of it) is currently mounted"
+    exit 2
+fi
+
+KNAME=$("${BINDIR}/lsblk" -o KNAME --noheadings --nodeps "$TARGETDEV")
+if "${BINDIR}/find" "/sys/block/${KNAME}/" -path "*/holders/*" | "${BINDIR}/grep" -q -E -v "^\$" ; then
+    echo "ERROR: $TARGETDEV (or a partition of it) is currently used in the kernel (e.g. device mapper)"
     exit 2
 fi
 
