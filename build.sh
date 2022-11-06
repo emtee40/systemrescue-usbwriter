@@ -39,6 +39,7 @@ install_bins=(
     df
     dialog
     find
+    getopt
     grep
     lsblk
     mcopy

@@ -8,13 +8,115 @@
 #
 # https://gitlab.com/systemrescue/systemrescue-sources/-/issues/284
 
-# TODO: add proper argument handling
-
 BINDIR="${APPDIR}/usr/bin"
 
-ISOIMAGE="$1"
-TARGETDEV="$2"
-VERBOSE=""
+print_help()
+{
+    echo "sysrescueusbwriter - write an iso image of SystemRescue to USB media"
+    echo ""
+    echo "Usage:"
+    echo "sysrescueusbwriter-x86_64.AppImage [-t|--target=<DEVICE-PATH>] <ISO-FILE>"
+    echo ""
+    echo "--target=<DEVICE-PATH>      Device file of the USB media you want to write to."
+    echo "                            Something like /dev/sdb"
+    echo ""
+    echo "<ISO-FILE>                  ISO image of SystemRescue"
+    echo ""
+    echo "See https://gitlab.com/systemrescue/systemrescue-sources/-/issues/284 for details."
+    
+    return
+}
+
+# error while parsing commandline parameters
+argument_error()
+{
+    echo "$1"
+    echo
+    echo "---------------------------------"
+    echo
+    print_help
+    exit 2
+}
+
+parse_args()
+{
+    # adapted from https://stackoverflow.com/a/29754866 by Robert Siemer
+    # version edited Mar 4 '21 at 0:11, licensed under CC BY-SA 4.0 due to Stackoverflow Terms of Service
+    # https://creativecommons.org/licenses/by-sa/4.0/
+
+    # show help when no arguments given
+    [[ $# -eq 0 ]] && { print_help ; exit 0 ; }
+    
+    # -allow a command to fail with !’s side effect on errexit
+    # -use return value from ${PIPESTATUS[0]}, because ! hosed $?
+    ! "${BINDIR}/getopt" --test > /dev/null 
+    if [[ ${PIPESTATUS[0]} -ne 4 ]]; then
+        echo 'ERROR: `getopt --test` failed in this environment'
+        exit 1
+    fi
+
+    local OPTIONS="t:h"
+    local LONGOPTS="target:,help"
+
+    # option variables as globals, set to default values
+    declare -g TARGETDEV=""
+    declare -g ISOIMAGE=""
+    declare -g VERBOSE=""
+    
+    # -regarding ! and PIPESTATUS see above
+    # -temporarily store output to be able to check for errors
+    # -activate quoting/enhanced mode (e.g. by writing out “--options”)
+    # -pass arguments only via   -- "$@"   to separate them correctly
+    ! PARSED=$("${BINDIR}/getopt" --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
+    if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+        # e.g. return value is 1
+        #  then getopt has complained about wrong arguments to stdout
+        echo
+        print_help
+        exit 2
+    fi
+    # read getopt’s output this way to handle the quoting right:
+    eval set -- "$PARSED"
+
+    while true; do
+        case "$1" in
+            -t|--target)
+                TARGETDEV="$2"
+                shift 2
+                ;;
+            -h|--help)
+                print_help
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                echo "ERROR: Argument parsing logic bug"
+                exit 2
+                ;;
+        esac
+    done
+
+    # handle positional arguments 
+    if [[ $# -lt 1 ]]; then
+        argument_error "ERROR: iso image option missing or empty"
+        exit 1
+    fi
+    if [[ $# -gt 1 ]]; then
+        argument_error "ERROR: too many positional arguments"
+        exit 1
+    fi
+    ISOIMAGE="$1"
+    
+    [[ -z "$TARGETDEV" ]] && argument_error "ERROR: target device option missing or empty"
+    [[ -z "$ISOIMAGE" ]] && argument_error "ERROR: iso image option missing or empty"
+
+    return
+}
+
+parse_args "$@"
 
 if [[ "$ISOIMAGE" =~ ^[^/] ]]; then
     # path relative to the dir we were originally called from

@@ -20,7 +20,7 @@ Currently only very basic copy is done, many checks and safeties are still missi
 ### Running
 
 - `chmod 755 sysrescueusbwriter-x86_64.AppImage`
-- `./sysrescueusbwriter-x86_64.AppImage <iso-image> <target-device>`
+- `./sysrescueusbwriter-x86_64.AppImage --target=<target-device> <iso-image>`
 
 ### Limitations
 
