@@ -32,7 +32,27 @@ cp -R ${HERE}/AppDirSrc/* ${HERE}/AppDirBuild/
 # install binaries
 declare -a install_bins
 install_bins=(
-    xorriso sfdisk syslinux mcopy mtools bash dd mktemp lsblk mkfs.fat cmp find df
+    bash
+    cat
+    cmp
+    dd
+    df
+    dialog
+    find
+    grep
+    lsblk
+    mcopy
+    mkdir
+    mkfs.fat
+    mktemp
+    mtools
+    rm
+    sed
+    sfdisk
+    stat
+    sync
+    syslinux
+    xorriso
 )
 
 for bin in "${install_bins[@]}"; do
@@ -45,24 +65,27 @@ done
 declare -a install_libs
 install_libs=(
     ld-linux-x86-64
-    libc
-    libdl
-    libtinfo
-    libpthread
     libacl
-    libz
-    libreadline
-    libncursesw
+    libblkid
+    libburn
+    libc
+    libdialog
+    libdl
+    libfdisk
+    libgcc_s
     libisoburn
     libisofs
-    libburn
-    libfdisk
-    libsmartcols
-    libuuid
-    libblkid
+    libm
     libmount
+    libncursesw
+    libpcre2-8
+    libpthread
+    libreadline
+    libsmartcols
+    libtinfo
     libudev
-    libgcc_s
+    libuuid
+    libz
 )
 
 for lib in "${install_libs[@]}"; do

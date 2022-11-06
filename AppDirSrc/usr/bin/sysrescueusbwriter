@@ -10,6 +10,8 @@
 
 # TODO: add proper argument handling
 
+BINDIR="${APPDIR}/usr/bin"
+
 ISOIMAGE="$1"
 TARGETDEV="$2"
 VERBOSE=""
@@ -41,30 +43,30 @@ if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
     exit 2
 fi
 
-TARGETDEVSIZE=$("${APPDIR}/usr/bin/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
-ISOSIZE=$(stat --format=%s "$ISOIMAGE")
+TARGETDEVSIZE=$("${BINDIR}/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
+ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
 # require gracious 50 MB tolerance to account for filesystem metadata and partitioning
 if [[ "${TARGETDEVSIZE}" -lt $[$ISOSIZE+52428800] ]]; then
     echo "ERROR: $TARGETDEV is too small for the given iso image"
     exit 2
 fi
 
-if "${APPDIR}/usr/bin/lsblk" -o PKNAME --noheadings --nodeps "$TARGETDEV" | grep -q -E -v "^\$" ; then
+if "${BINDIR}/lsblk" -o PKNAME --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
     echo "ERROR: $TARGETDEV is not a raw device but a partition"
     exit 2
 fi
 
-if "${APPDIR}/usr/bin/lsblk" -o MOUNTPOINTS --noheadings "$TARGETDEV" | grep -q -E -v "^\$" ; then
+if "${BINDIR}/lsblk" -o MOUNTPOINTS --noheadings "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
     echo "ERROR: $TARGETDEV (or a partition of it) is currently mounted"
     exit 2
 fi
 
-if "${APPDIR}/usr/bin/lsblk" -o RO --noheadings --nodeps "$TARGETDEV" | grep -q "1" ; then
+if "${BINDIR}/lsblk" -o RO --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
     echo "ERROR: $TARGETDEV is read-only"
     exit 2
 fi
 
-if ! "${APPDIR}/usr/bin/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | grep -q "1" ; then
+if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
     echo "WARNING: $TARGETDEV is not a removable or hotplug device"
     
     read -p "Are you sure you want to overwrite it (y/n)? " answer
@@ -80,8 +82,8 @@ if ! "${APPDIR}/usr/bin/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | g
 fi
 
 # check if we really have an iso file as source and not something else
-if ! "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
-    "${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | grep -E "(is blank|Drive address .* rejected)"; then
+if ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
+    "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | "${BINDIR}/grep" -E "(is blank|Drive address .* rejected)"; then
     echo "ERROR: $ISOIMAGE is not a valid ISO file"
     exit 3
 fi
@@ -95,7 +97,7 @@ if ! [[ -v TMPDIR ]] || [[ -z "$TMPDIR" ]]; then
 fi
 
 # check free space on temp dir
-TMPSPACE=$("${APPDIR}/usr/bin/df" --block-size=1 --output=avail "$TMPDIR" | grep -v "Avail")
+TMPSPACE=$("${BINDIR}/df" --block-size=1 --output=avail "$TMPDIR" | "${BINDIR}/grep" -v "Avail")
 # require gracious 50 MB tolerance to account for filesystem metadata and inefficiency
 if [[ "${TMPSPACE}" -lt $[$ISOSIZE+52428800] ]]; then
     echo "ERROR: not enough space on $TMPDIR"
@@ -103,27 +105,27 @@ if [[ "${TMPSPACE}" -lt $[$ISOSIZE+52428800] ]]; then
 fi
 
 # always create a subdir below a given TMPDIR for security/reliability reasons
-TMPDIR=$("${APPDIR}/usr/bin/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
+TMPDIR=$("${BINDIR}/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
 # errors during main execution will leave the TMPDIR behind
 # useful for finding out what went wrong, but has to be cleaned manually
 
 echo "Unpacking iso image..."
 
 # unpack iso image
-mkdir -p "${TMPDIR}/filesystem"
-"${APPDIR}/usr/bin/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd" 2>/dev/null
-"${APPDIR}/usr/bin/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE 2>/dev/null
+"${BINDIR}/mkdir" -p "${TMPDIR}/filesystem"
+"${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd" 2>/dev/null
+"${BINDIR}/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE 2>/dev/null
 
 # TODO: better check that is not hardcoded on version, but detects syslinux version, iso layout and architecture
 if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]] || \
-   ! grep -q "9.05" "${TMPDIR}/filesystem/sysresccd/VERSION" ; then
+   ! "${BINDIR}/grep" -q "9.05" "${TMPDIR}/filesystem/sysresccd/VERSION" ; then
     echo "ERROR: iso image is not compatible with this script. It only works with SystemRescue 9.05"
     exit 2
 fi
 
-PARTLABEL=$(grep -E "Volume Id *:" "${TMPDIR}/meta-pvd" | sed -e "s/^Volume Id *: \(.*\)/\1/")
+PARTLABEL=$("${BINDIR}/grep" -E "Volume Id *:" "${TMPDIR}/meta-pvd" | "${BINDIR}/sed" -e "s/^Volume Id *: \(.*\)/\1/")
 
-if ! echo "$PARTLABEL" | grep -q "^RESCUE" ; then
+if ! echo "$PARTLABEL" | "${BINDIR}/grep" -q "^RESCUE" ; then
     echo "ERROR: can't read iso volume label"
     exit 1
 fi
@@ -141,7 +143,7 @@ esac
 
 # partition & format target dev
 # size not given means until the end of the device
-"${APPDIR}/usr/bin/sfdisk" --wipe always --wipe-partitions always --quiet "${TARGETDEV}" <<EOF
+"${BINDIR}/sfdisk" --wipe always --wipe-partitions always --quiet "${TARGETDEV}" <<EOF
 label: dos
 unit: sectors
 sector-size: 512
@@ -150,46 +152,46 @@ img1 : start=        2048, type=c, bootable
 EOF
 
 # the filesystem begins at sector 2048, fix backup boot sector at 6 (see below)
-"${APPDIR}/usr/bin/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
+"${BINDIR}/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
 
 echo "Copying files..."
 
 # copy all files
 # TODO: quote source dir, probably need to list all first level contents separately
 # TODO: print progress, probably by patching mcopy to print a "." every megabyte or something similar
-"${APPDIR}/usr/bin/mcopy" -spQm ${TMPDIR}/filesystem/* -i "${TARGETDEV}@@1048576" ::/
+"${BINDIR}/mcopy" -spQm ${TMPDIR}/filesystem/* -i "${TARGETDEV}@@1048576" ::/
 
 echo "Installing syslinux bootloader..."
 
 # install syslinux on target dev
-"${APPDIR}/usr/bin/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
+"${BINDIR}/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
 
 # install the syslinux MBR, boot from partition 1
-printf '\1' | cat "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${APPDIR}/usr/bin/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}" 2>/dev/null
+printf '\1' | "${BINDIR}/cat" "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${BINDIR}/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}" 2>/dev/null
 
 # syslinux only installs itself to the primary fat boot sector, not the backup boot sector
 # the backup boot sector is at logical sector 6 of the fat32 filesystem, the primary at sector 1
 # copy it over so we get a properly clean filesystem
-"${APPDIR}/usr/bin/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin" 2>/dev/null
-"${APPDIR}/usr/bin/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}" 2>/dev/null
+"${BINDIR}/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin" 2>/dev/null
+"${BINDIR}/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}" 2>/dev/null
 
 # write caches to drive
 # usually does not apply when doing direct access to the device handle, but we want to be sure
-sync
+"${BINDIR}/sync"
 
 echo "Verifying data..."
 
 # TODO: add patched version of fsck.vfat that can read from offsets and do a filesystem check
 
 # verify output media content
-"${APPDIR}/usr/bin/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
-    if ! "${APPDIR}/usr/bin/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - | "${APPDIR}/usr/bin/cmp" - "${TMPDIR}/filesystem/${line}"; then
+"${BINDIR}/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
+    if ! "${BINDIR}/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - | "${BINDIR}/cmp" - "${TMPDIR}/filesystem/${line}"; then
         echo "ERROR: verification mismatch for file ${line}"
         exit 3
     fi
 done
 
 # everything successful, so we can clean up our temp dir
-rm -rf "${TMPDIR}"
+"${BINDIR}/rm" -rf "${TMPDIR}"
 
 echo "Success"
