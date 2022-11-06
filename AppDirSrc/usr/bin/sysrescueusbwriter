@@ -10,6 +10,9 @@
 
 BINDIR="${APPDIR}/usr/bin"
 
+# abort on failures
+set -o errexit -o pipefail -o noclobber -o nounset
+
 print_help()
 {
     echo "sysrescueusbwriter - write an iso image of SystemRescue to USB media"
@@ -110,99 +113,198 @@ parse_args()
     fi
     ISOIMAGE="$1"
     
-    [[ -z "$TARGETDEV" ]] && argument_error "ERROR: target device option missing or empty"
     [[ -z "$ISOIMAGE" ]] && argument_error "ERROR: iso image option missing or empty"
+
+    if [[ "$ISOIMAGE" =~ ^[^/] ]]; then
+        # path relative to the dir we were originally called from
+        ISOIMAGE="${OWD}/${ISOIMAGE}"
+    fi
+
+    if [[ -n "$TARGETDEV" ]] && [[ "$TARGETDEV" =~ ^[^/] ]]; then
+        # path relative to the dir we were originally called from
+        TARGETDEV="${OWD}/${TARGETDEV}"
+    fi
+    
+    return
+}
+
+check_iso()
+{
+    if ! [[ -f "$ISOIMAGE" ]]; then
+        echo "ERROR: No such file: $ISOIMAGE"
+        exit 1
+    fi
+
+    if ! [[ -r "$ISOIMAGE" ]]; then
+        echo "ERROR: not enough permissions to read $ISOIMAGE"
+        exit 2
+    fi
+
+    # check if we really have an iso file as source and not something else
+    if ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
+        "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | "${BINDIR}/grep" -E "(is blank|Drive address .* rejected)"; then
+        echo "ERROR: $ISOIMAGE is not a valid ISO file"
+        exit 3
+    fi
+
+    # TODO: opportunistic checkisomd5 verify
 
     return
 }
 
+check_targetdev()
+{
+    if ! [[ -b "$TARGETDEV" ]]; then
+        echo "ERROR: No such block device: $TARGETDEV"
+        exit 1
+    fi
+
+    if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
+        echo "ERROR: not enough permissions to access $TARGETDEV"
+        exit 2
+    fi
+
+    TARGETDEVSIZE=$("${BINDIR}/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
+    ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
+    # require gracious 50 MB tolerance to account for filesystem metadata and partitioning
+    if [[ "${TARGETDEVSIZE}" -lt $[$ISOSIZE+52428800] ]]; then
+        echo "ERROR: $TARGETDEV is too small for the given iso image"
+        exit 2
+    fi
+
+    if "${BINDIR}/lsblk" -o PKNAME --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
+        echo "ERROR: $TARGETDEV is not a raw device but a partition"
+        exit 2
+    fi
+
+    if "${BINDIR}/lsblk" -o MOUNTPOINTS --noheadings "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
+        echo "ERROR: $TARGETDEV (or a partition of it) is currently mounted"
+        exit 2
+    fi
+
+    KNAME=$("${BINDIR}/lsblk" -o KNAME --noheadings --nodeps "$TARGETDEV")
+    if "${BINDIR}/find" "/sys/block/${KNAME}/" -path "*/holders/*" | "${BINDIR}/grep" -q -E -v "^\$" ; then
+        echo "ERROR: $TARGETDEV (or a partition of it) is currently used in the kernel (e.g. device mapper)"
+        exit 2
+    fi
+
+    if "${BINDIR}/lsblk" -o RO --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ||
+        "${BINDIR}/lsblk" -o TYPE --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q -E "^rom" ; then
+        echo "ERROR: $TARGETDEV is read-only"
+        exit 2
+    fi
+
+    if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
+        echo "WARNING: $TARGETDEV is not a removable or hotplug device"
+        
+        read -p "Are you sure you want to overwrite it (y/n)? " answer
+        case ${answer:0:1} in
+            y|Y )
+                echo Ok
+            ;;
+            * )
+                echo "Aborting"
+                exit 1
+            ;;
+        esac
+    fi
+
+    return
+}
+
+select_targetdev()
+{
+    # find all suitable hotplug block devices and show them in a dialog
+    
+    declare -a blockdevs
+    readarray -t blockdevs < <("${BINDIR}/lsblk" -o KNAME --noheadings --nodeps)
+
+    ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
+    
+    declare -a devmenu
+    for d in "${blockdevs[@]}" ; do
+    
+        if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "/dev/${d}" | "${BINDIR}/grep" -q "1" ; then
+            # we only want to show hotplug / removable block devices
+            continue
+        fi
+
+        if "${BINDIR}/lsblk" -o RO --noheadings --nodeps "/dev/${d}" | "${BINDIR}/grep" -q "1" ||
+           "${BINDIR}/lsblk" -o TYPE --noheadings --nodeps "/dev/${d}" | "${BINDIR}/grep" -q -E "^rom" ; then
+            # ignore read-only devices like cdroms
+            continue
+        fi
+        
+        TARGETDEVSIZE=$("${BINDIR}/lsblk" -o SIZE --bytes --noheadings --nodeps "/dev/${d}")
+        # require gracious 50 MB tolerance to account for filesystem metadata and partitioning
+        if [[ "${TARGETDEVSIZE}" -lt $[$ISOSIZE+52428800] ]]; then
+            # we only want to show devices large enough
+            continue
+        fi
+
+        # show this device -> read out it's model and manufacturer
+        
+        MODEL=$("${BINDIR}/lsblk" -o MODEL --bytes --noheadings --nodeps "/dev/${d}")
+        VENDOR=$("${BINDIR}/lsblk" -o VENDOR --bytes --noheadings --nodeps "/dev/${d}")
+        
+        # replace all potentially dangerous characters with "_" - just to be sure, badusb is a thing...
+        MODEL="${MODEL//[^[0-9A-Za-z_ .,+*/?<=>@:-]]/_}"
+        VENDOR="${VENDOR//[^[0-9A-Za-z_ .,+*/?<=>@:-]]/_}"
+        
+        # strip trailing whitespace
+        MODEL="${MODEL%"${MODEL##*[![:space:]]}"}"  
+        VENDOR="${VENDOR%"${VENDOR##*[![:space:]]}"}"  
+        
+        # don't show vendor if just some hex code
+        if [[ "$VENDOR" =~ ^0x[0-9a-fA-F]+ ]]; then
+            VENDOR=""
+        fi
+        
+        # don't show vendor if it is contained in the model too
+        if echo "$MODEL" | grep -i -q "$VENDOR" ; then
+            VENDOR=""
+        fi
+
+        if [[ -n "$VENDOR" ]]; then
+            devmenu+=("/dev/${d}")
+            devmenu+=("${VENDOR} ${MODEL}")
+        else
+            devmenu+=("/dev/${d}")
+            devmenu+=("${MODEL}")
+        fi
+    done
+    
+    # let user select between all devices in a ncurses dialog
+    exec 3>&1;
+    exitcode=0
+    SELECTED=$(dialog --erase-on-exit --title "Select target device" \
+        --menu "Select device to write SystemRescue to" 0 0 0 "${devmenu[@]}" 2>&1 1>&3) || exitcode=$?
+    exec 3>&-
+
+    if [[ "$exitcode" -ne 0 ]] || [[ -z "$SELECTED" ]]; then
+        echo "Aborted"
+        exit 1
+    fi
+    
+    TARGETDEV="${SELECTED}"
+
+    return
+}
+
+############# SCRIPT STARTS HERE ####################
+
 parse_args "$@"
 
-if [[ "$ISOIMAGE" =~ ^[^/] ]]; then
-    # path relative to the dir we were originally called from
-    ISOIMAGE="${OWD}/${ISOIMAGE}"
+check_iso
+
+if [[ -n "$TARGETDEV" ]]; then
+    # we got $TARGETDEV as a cmdline option, check if valid
+    check_targetdev
+else
+    # no $TARGETDEV option, let user select one in a dialog
+    select_targetdev
+    check_targetdev
 fi
-
-if [[ "$TARGETDEV" =~ ^[^/] ]]; then
-    # path relative to the dir we were originally called from
-    TARGETDEV="${OWD}/${TARGETDEV}"
-fi
-
-if ! [[ -f "$ISOIMAGE" ]]; then
-    echo "ERROR: No such file: $ISOIMAGE"
-    exit 1
-fi
-
-if ! [[ -b "$TARGETDEV" ]]; then
-    echo "ERROR: No such block device: $TARGETDEV"
-    exit 1
-fi
-
-# abort on failures
-set -o errexit -o pipefail -o noclobber -o nounset
-
-if ! [[ -r "$ISOIMAGE" ]]; then
-    echo "ERROR: not enough permissions to read $ISOIMAGE"
-    exit 2
-fi
-
-if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
-    echo "ERROR: not enough permissions to access $TARGETDEV"
-    exit 2
-fi
-
-TARGETDEVSIZE=$("${BINDIR}/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
-ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
-# require gracious 50 MB tolerance to account for filesystem metadata and partitioning
-if [[ "${TARGETDEVSIZE}" -lt $[$ISOSIZE+52428800] ]]; then
-    echo "ERROR: $TARGETDEV is too small for the given iso image"
-    exit 2
-fi
-
-if "${BINDIR}/lsblk" -o PKNAME --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
-    echo "ERROR: $TARGETDEV is not a raw device but a partition"
-    exit 2
-fi
-
-if "${BINDIR}/lsblk" -o MOUNTPOINTS --noheadings "$TARGETDEV" | "${BINDIR}/grep" -q -E -v "^\$" ; then
-    echo "ERROR: $TARGETDEV (or a partition of it) is currently mounted"
-    exit 2
-fi
-
-KNAME=$("${BINDIR}/lsblk" -o KNAME --noheadings --nodeps "$TARGETDEV")
-if "${BINDIR}/find" "/sys/block/${KNAME}/" -path "*/holders/*" | "${BINDIR}/grep" -q -E -v "^\$" ; then
-    echo "ERROR: $TARGETDEV (or a partition of it) is currently used in the kernel (e.g. device mapper)"
-    exit 2
-fi
-
-if "${BINDIR}/lsblk" -o RO --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
-    echo "ERROR: $TARGETDEV is read-only"
-    exit 2
-fi
-
-if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
-    echo "WARNING: $TARGETDEV is not a removable or hotplug device"
-    
-    read -p "Are you sure you want to overwrite it (y/n)? " answer
-    case ${answer:0:1} in
-        y|Y )
-            echo Ok
-        ;;
-        * )
-            echo "Aborting"
-            exit 1
-        ;;
-    esac
-fi
-
-# check if we really have an iso file as source and not something else
-if ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
-    "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | "${BINDIR}/grep" -E "(is blank|Drive address .* rejected)"; then
-    echo "ERROR: $ISOIMAGE is not a valid ISO file"
-    exit 3
-fi
-
-# TODO: opportunistic checkisomd5 verify
 
 # create tmpdir to unpack to
 # default to below /tmp, but allow to change with $TMPDIR
