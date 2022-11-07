@@ -244,6 +244,7 @@ select_targetdev()
     ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
     
     declare -a devmenu
+    devmenu=( )
     for d in "${blockdevs[@]}" ; do
     
         if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "/dev/${d}" | "${BINDIR}/grep" -q "1" ; then
@@ -301,6 +302,12 @@ select_targetdev()
             devmenu+=("${MODEL} (${TARGETDEVHUMANSIZE}B)")
         fi
     done
+    
+    if [[ ${#devmenu[@]} -eq 0 ]]; then
+        echo "ERROR: no suitable target devices found"
+        echo "You can manually specify the target device with the --target=<DEVICE-PATH> option"
+        exit 1
+    fi
     
     # let user select between all devices in a ncurses dialog
     exec 3>&1;
