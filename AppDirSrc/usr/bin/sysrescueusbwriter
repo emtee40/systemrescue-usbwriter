@@ -264,6 +264,12 @@ select_targetdev()
             continue
         fi
 
+        TARGETDEVHUMANSIZE=$("${BINDIR}/lsblk" -o SIZE --noheadings --nodeps "/dev/${d}")
+        # strip leading whitespace
+        TARGETDEVHUMANSIZE="${TARGETDEVHUMANSIZE#"${TARGETDEVHUMANSIZE%%[![:space:]]*}"}"
+        # strip trailing whitespace
+        TARGETDEVHUMANSIZE="${TARGETDEVHUMANSIZE%"${TARGETDEVHUMANSIZE##*[![:space:]]}"}"
+
         # show this device -> read out it's model and manufacturer
         
         MODEL=$("${BINDIR}/lsblk" -o MODEL --bytes --noheadings --nodeps "/dev/${d}")
@@ -289,10 +295,10 @@ select_targetdev()
 
         if [[ -n "$VENDOR" ]]; then
             devmenu+=("/dev/${d}")
-            devmenu+=("${VENDOR} ${MODEL}")
+            devmenu+=("${VENDOR} ${MODEL} (${TARGETDEVHUMANSIZE}B)")
         else
             devmenu+=("/dev/${d}")
-            devmenu+=("${MODEL}")
+            devmenu+=("${MODEL} (${TARGETDEVHUMANSIZE}B)")
         fi
     done
     
