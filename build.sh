@@ -42,10 +42,12 @@ install_bins=(
     getopt
     grep
     lsblk
+    mattrib
     mcopy
     mkdir
     mkfs.fat
     mktemp
+    mmove
     mtools
     nnn
     rm
@@ -142,6 +144,13 @@ ls -1 "${HERE}/AppDirBuild/usr/lib/" | while read -r line; do
         patchelf --set-rpath "\$ORIGIN" --force-rpath "${HERE}/AppDirBuild/usr/lib/${line}"
     fi
 done
+
+# copy gconv data for codepage 850 (dos default for FAT)
+mkdir -p "${HERE}/AppDirBuild/usr/lib/gconv/gconv-modules.d"
+cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/IBM850.so "${HERE}/AppDirBuild/usr/lib/gconv/"
+cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/gconv-modules "${HERE}/AppDirBuild/usr/lib/gconv/"
+cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/gconv-modules.d/gconv-modules-extra.conf "${HERE}/AppDirBuild/usr/lib/gconv/gconv-modules.d"
+patchelf --set-rpath "\$ORIGIN/.." --force-rpath "${HERE}/AppDirBuild/usr/lib/gconv/IBM850.so"
 
 # install syslinux boot blocks
 mkdir -p "${HERE}/AppDirBuild/usr/lib/syslinux/bios"

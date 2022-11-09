@@ -395,13 +395,17 @@ esac
 
 # partition & format target dev
 # size not given means until the end of the device
-"${BINDIR}/sfdisk" --wipe always --wipe-partitions always --quiet "${TARGETDEV}" <<EOF
+"${BINDIR}/sfdisk" --wipe always --wipe-partitions always --no-tell-kernel --quiet "${TARGETDEV}" <<EOF
 label: dos
 unit: sectors
 sector-size: 512
 
 img1 : start=        2048, type=c, bootable
 EOF
+
+# FAT tools need to convert to/from codepage 850, the dos default
+# we bring our own gconv libs for our glibc, use them
+export GCONV_PATH="${APPDIR}/usr/lib/gconv"
 
 # the filesystem begins at sector 2048, fix backup boot sector at 6 (see below)
 "${BINDIR}/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
@@ -417,7 +421,8 @@ readarray -t firstlevel < <("${BINDIR}/find" "${TMPDIR}/filesystem" -maxdepth 1 
 echo "Installing syslinux bootloader..."
 
 # install syslinux on target dev
-"${BINDIR}/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
+# forks several mtools programs, so we need to set the PATH to our dir only
+PATH="${BINDIR}" "${BINDIR}/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
 
 # install the syslinux MBR, boot from partition 1
 printf '\1' | "${BINDIR}/cat" "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${BINDIR}/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}" 2>/dev/null
