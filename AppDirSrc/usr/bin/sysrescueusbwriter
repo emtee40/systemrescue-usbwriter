@@ -18,16 +18,20 @@ print_help()
     echo "sysrescueusbwriter - write an iso image of SystemRescue to USB media"
     echo ""
     echo "Usage:"
-    echo "sysrescueusbwriter-x86_64.AppImage [-t|--target=<DEVICE-PATH>] [-l|--licenses]"
-    echo "                   <ISO-FILE>"
+    echo "sysrescueusbwriter-x86_64.AppImage [OPTIONS] <ISO-FILE>"
     echo ""
-    echo "--target=<DEVICE-PATH>      Device file of the USB media you want to write to."
-    echo "                            Something like /dev/sdb"
+    echo "<ISO-FILE>                     ISO image of SystemRescue"
     echo ""
-    echo "--licenses                  Show licenses of all programs packaged in the AppImage."
-    echo "                            Use 'e' to view a file and 'q' to quit."
+    echo "Options:"
     echo ""
-    echo "<ISO-FILE>                  ISO image of SystemRescue"
+    echo "-t|--targetdev=<DEVICE-PATH>   Device file of the USB media you want to write to."
+    echo "                               Something like /dev/sdb"
+    echo ""
+    echo "-l|--licenses                  Show licenses of all programs packaged in the AppImage."
+    echo "                               Use 'e' to view a file and 'q' to quit."
+    echo "                               Showing the licenses overrides other parameters."
+    echo ""
+    echo "-h|--help                      Show this help. Overrides other parameters."
     echo ""
     echo "See https://gitlab.com/systemrescue/systemrescue-sources/-/issues/284 for details."
     
@@ -77,7 +81,7 @@ parse_args()
     fi
 
     local OPTIONS="t:lh"
-    local LONGOPTS="target:,license,licenses,help"
+    local LONGOPTS="targetdev:,license,licenses,help"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
@@ -101,7 +105,7 @@ parse_args()
 
     while true; do
         case "$1" in
-            -t|--target)
+            -t|--targetdev)
                 TARGETDEV="$2"
                 shift 2
                 ;;
@@ -176,8 +180,13 @@ check_iso()
 
 check_targetdev()
 {
+    if ! [[ -e "$TARGETDEV" ]]; then
+        echo "ERROR: target device $TARGETDEV doesn't exist"
+        exit 1
+    fi
+
     if ! [[ -b "$TARGETDEV" ]]; then
-        echo "ERROR: No such block device: $TARGETDEV"
+        echo "ERROR: target device not a block device: $TARGETDEV"
         exit 1
     fi
 
