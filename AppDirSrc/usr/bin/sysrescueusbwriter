@@ -183,7 +183,7 @@ check_iso()
         exit 3
     fi
 
-    declare -g ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
+    declare -g ISOSIZE=$("${BINDIR}/stat" -c %s "$ISOIMAGE")
     
     # TODO: opportunistic checkisomd5 verify
 
@@ -200,11 +200,6 @@ check_targetdev()
     if ! [[ -b "$TARGETDEV" ]]; then
         echo "ERROR: target device not a block device: $TARGETDEV"
         exit 1
-    fi
-
-    if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
-        echo "ERROR: not enough permissions to access $TARGETDEV"
-        exit 2
     fi
 
     TARGETDEVSIZE=$("${BINDIR}/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
@@ -246,6 +241,17 @@ check_targetdev()
         fi
     fi
 
+    if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
+        gain_access
+    fi
+    
+    if ! [[ -r "$TARGETDEV" && -w "$TARGETDEV" ]]; then
+        echo ""
+        echo "ERROR: still not enough permissions to access $TARGETDEV"
+        echo "Please change rights manually."
+        exit 1
+    fi
+    
     return
 }
 
@@ -337,6 +343,114 @@ select_targetdev()
     TARGETDEV="${SELECTED}"
 
     return
+}
+
+gain_access_sudo()
+{
+    # do we have sudo installed at all?
+    if ! command -v sudo &>/dev/null ; then
+        return 1
+    fi
+
+    echo ""
+    echo "trying: sudo --user=root chown $EUID \"$TARGETDEV\""
+    echo ""
+    
+    # this is using the sudo of the system, we can't bring our own
+    exitcode=0
+    sudo -u root chown $EUID "$TARGETDEV" || exitcode=$?
+
+    if [[ "$exitcode" -ne 0 ]]; then
+        echo ""
+        echo "sudo failed to get access."
+        return 1
+    fi
+   
+    return 0
+}
+
+gain_access_pkexec()
+{
+    # do we have pkexec installed at all?
+    if ! command -v pkexec &>/dev/null ; then
+        return 1
+    fi
+
+    # is polkitd running? pkexec can't work without polkit
+    if ! "${BINDIR}/pgrep" -f polkitd >/dev/null ; then
+        return 1
+    fi
+
+    echo ""
+    echo "trying: pkexec --user=root chown $EUID \"$TARGETDEV\""
+    echo ""
+    
+    # this is using the pkexec of the system, we can't bring our own
+    exitcode=0
+    pkexec --user root chown $EUID "$TARGETDEV" || exitcode=$?
+
+    if [[ "$exitcode" -ne 0 ]]; then
+        echo ""
+        echo "pkexec failed to get access."
+        return 1
+    fi
+   
+    return 0
+}
+
+gain_access_su()
+{
+    # do we have su installed at all?
+    if ! command -v su &>/dev/null ; then
+        return 1
+    fi
+
+    echo ""
+    echo "trying: su -s /bin/sh root -c \"chown $EUID $TARGETDEV\""
+    echo ""
+    
+    # this is using su of the system, we can't bring our own
+    exitcode=0
+    su -s /bin/sh root -c "chown $EUID \"$TARGETDEV\"" || exitcode=$?
+
+    if [[ "$exitcode" -ne 0 ]]; then
+        echo ""
+        echo "su failed to get access."
+        return 1
+    fi
+   
+    return 0
+}
+
+gain_access()
+{
+    # we don't have write access to $TARGETDEV yet
+    # try to use sudo to gain access
+    
+    echo "Not enough rights to access $TARGETDEV"
+
+    exitcode=0
+    gain_access_sudo || exitcode=$?
+    if [[ "$exitcode" -eq 0 ]]; then
+        return
+    fi
+
+    exitcode=0
+    gain_access_pkexec || exitcode=$?
+    if [[ "$exitcode" -eq 0 ]]; then
+        return
+    fi
+    
+    exitcode=0
+    gain_access_su || exitcode=$?
+    if [[ "$exitcode" -eq 0 ]]; then
+        return
+    fi
+    
+    echo ""
+    echo "ERROR: can't get permissions to access $TARGETDEV"
+    echo "Please change rights manually."
+    exit 1
 }
 
 clean_tmpdir()

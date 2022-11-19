@@ -33,8 +33,7 @@ cp -R ${HERE}/AppDirSrc/* ${HERE}/AppDirBuild/
 declare -a install_bins
 install_bins=(
     bash
-    cat
-    cmp
+    busybox
     dd
     df
     dialog
@@ -44,23 +43,34 @@ install_bins=(
     lsblk
     mattrib
     mcopy
-    mkdir
     mkfs.fat
     mktemp
     mmove
     mtools
     nnn
-    rm
     sed
     sfdisk
-    stat
-    sync
     syslinux
     xorriso
 )
 
 for bin in "${install_bins[@]}"; do
     cp --no-dereference --preserve=links,mode,ownership,timestamps "/usr/bin/${bin}" "${HERE}/AppDirBuild/usr/bin/"
+done
+
+declare -a busybox_symlinks
+busybox_symlinks=(
+    cat
+    cmp
+    mkdir
+    pgrep
+    rm
+    stat
+    sync
+)
+
+for bin in "${busybox_symlinks[@]}"; do
+    ln -s busybox "${HERE}/AppDirBuild/usr/bin/${bin}"
 done
 
 # install libraries
@@ -98,6 +108,12 @@ done
 
 # check used libs
 for bin in "${install_bins[@]}"; do
+
+    # busybox is statically linked
+    if [[ "$bin" == "busybox" ]]; then
+        continue
+    fi
+
     ldd "${HERE}/AppDirBuild/usr/bin/${bin}" | while read -r line; do
         # ignore vdso & ld-linux, they are necessary for shared libs and are expteced to be always available on the target
         if ! echo $line | grep -q "linux-vdso.so" && ! echo $line | grep -q "ld-linux-x86-64.so" ; then
@@ -121,8 +137,7 @@ done
 
 # set rpath & ELF interpreter for binaries
 for bin in "${install_bins[@]}"; do
-    if ! ldd "${HERE}/AppDirBuild/usr/bin/${bin}" | grep -q -E "(not a dynamic executable|statically linked)"; then
-        
+    if ldd "${HERE}/AppDirBuild/usr/bin/${bin}" 2>&1 | grep -q -v -E "(not a dynamic executable|statically linked)"; then
         # patch the ELF interpreter: that is the library responsible for loading shared libraries = ld-linux.so
         # it must exactly match the libc version. Since we bring our own libc, we use a relative interpreter path
         # this means the whole AppImage must be run with the current path set to the root of the AppDir
