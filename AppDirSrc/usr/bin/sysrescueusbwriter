@@ -86,7 +86,7 @@ parse_args()
     fi
 
     local OPTIONS="t:e:lh"
-    local LONGOPTS="targetdev:,tmpdir:,license,licenses,help"
+    local LONGOPTS="targetdev:,tmpdir:,licenses,help"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
@@ -123,7 +123,7 @@ parse_args()
                 print_help
                 exit 0
                 ;;
-            -l|--license|--licenses)
+            -l|--licenses)
                 show_licenses
                 exit 0
                 ;;
@@ -237,18 +237,13 @@ check_targetdev()
     fi
 
     if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
-        echo "WARNING: $TARGETDEV is not a removable or hotplug device"
-        
-        read -p "Are you sure you want to overwrite it (y/n)? " answer
-        case ${answer:0:1} in
-            y|Y )
-                echo Ok
-            ;;
-            * )
-                echo "Aborting"
-                exit 1
-            ;;
-        esac
+        exitcode=0
+        "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
+            "\nWARNING: $TARGETDEV is not a removable or hotplug device\n\nAre you sure you want to overwrite it?" 9 70 || exitcode=$?
+        if [[ "$exitcode" -ne 0 ]]; then
+            echo "Aborted"
+            exit 1
+        fi
     fi
 
     return
@@ -322,15 +317,15 @@ select_targetdev()
     done
     
     if [[ ${#devmenu[@]} -eq 0 ]]; then
-        echo "ERROR: no suitable target devices found"
-        echo "You can manually specify the target device with the --target=<DEVICE-PATH> option"
+        echo "ERROR: no suitable removable/hotplug target devices found"
+        echo "You can manually specify the target device with the --targetdev=<DEVICE-PATH> option"
         exit 1
     fi
     
     # let user select between all devices in a ncurses dialog
     exec 3>&1;
     exitcode=0
-    SELECTED=$(dialog --erase-on-exit --title "Select target device" \
+    SELECTED=$("${BINDIR}/dialog" --erase-on-exit --title "Select target device" \
         --menu "Select device to write SystemRescue to" 0 0 0 "${devmenu[@]}" 2>&1 1>&3) || exitcode=$?
     exec 3>&-
 
@@ -373,7 +368,7 @@ create_tmpdir()
     fi
 
     # always create a subdir below a given TMPDIR for security/reliability reasons
-    TMPDIR=$("${BINDIR}/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
+    TMPDIR=$("${BINDIR}/mktemp" --tmpdir="${TMPDIR}" --directory sysrescueusbwriter.XXXXXXXXXX)
 
     # always clean up our tmpdir when the script exits
     trap clean_tmpdir EXIT
@@ -417,16 +412,13 @@ if ! echo "$PARTLABEL" | "${BINDIR}/grep" -q "^RESCUE" ; then
     exit 1
 fi
 
-read -p "Are you sure you want to overwrite all content of $TARGETDEV (y/n)? " answer
-case ${answer:0:1} in
-    y|Y )
-        echo Ok
-    ;;
-    * )
-        echo "Aborting"
-        exit 1
-    ;;
-esac
+exitcode=0
+"${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
+    "\nAre you sure you want to overwrite all content of $TARGETDEV?" 8 70 || exitcode=$?
+if [[ "$exitcode" -ne 0 ]]; then
+    echo "Aborted"
+    exit 1
+fi
 
 echo "Partitioning and formatting target device..."
 
