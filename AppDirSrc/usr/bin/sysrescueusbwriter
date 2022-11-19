@@ -176,6 +176,8 @@ check_iso()
         exit 2
     fi
 
+    echo "Checking ISO image..."
+   
     # check if we really have an iso file as source and not something else
     if ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
         "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | "${BINDIR}/grep" -E "(is blank|Drive address .* rejected)"; then
@@ -185,7 +187,17 @@ check_iso()
 
     declare -g ISOSIZE=$("${BINDIR}/stat" -c %s "$ISOIMAGE")
     
-    # TODO: opportunistic checkisomd5 verify
+    # check md5 checksum that might be embedded in the iso
+    # ignore if it is missing but abort if present but not matching
+    exitcode=0
+    CHKSUMOUT=$("${BINDIR}/checkisomd5" "$ISOIMAGE" 2>&1) || exitcode=$?
+    if [[ "$exitcode" -ne 0 ]]; then
+        # checksum either not there or not matching
+        if ! echo "$CHKSUMOUT" | grep -q "No checksum information available"; then
+            echo "ERROR: MD5 checksum implanted in $ISOIMAGE does not match"
+            exit 3
+        fi
+    fi
 
     return
 }

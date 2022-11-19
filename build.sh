@@ -34,6 +34,8 @@ declare -a install_bins
 install_bins=(
     bash
     busybox
+    checkisomd5
+    cmp
     dd
     df
     dialog
@@ -61,7 +63,6 @@ done
 declare -a busybox_symlinks
 busybox_symlinks=(
     cat
-    cmp
     mkdir
     pgrep
     rm
@@ -93,6 +94,7 @@ install_libs=(
     libmount
     libncursesw
     libpcre2-8
+    libpopt
     libpthread
     libreadline
     libsmartcols
