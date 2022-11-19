@@ -25,7 +25,12 @@ print_help()
     echo "Options:"
     echo ""
     echo "-t|--targetdev=<DEVICE-PATH>   Device file of the USB media you want to write to."
-    echo "                               Something like /dev/sdb"
+    echo "                               Something like /dev/sdb."
+    echo "                               A text UI to select a likely device is shown if missing."
+    echo ""
+    echo "-e|--tmpdir=<TMPDIR>           Use the given directory for storing temporary files."
+    echo "                               You need enough space there for unpacking the whole"
+    echo "                               iso image. Defaults to the TMPDIR environment variable."
     echo ""
     echo "-l|--licenses                  Show licenses of all programs packaged in the AppImage."
     echo "                               Use 'e' to view a file and 'q' to quit."
@@ -80,13 +85,14 @@ parse_args()
         exit 1
     fi
 
-    local OPTIONS="t:lh"
-    local LONGOPTS="targetdev:,license,licenses,help"
+    local OPTIONS="t:e:lh"
+    local LONGOPTS="targetdev:,tmpdir:,license,licenses,help"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
     declare -g ISOIMAGE=""
     declare -g VERBOSE=""
+    declare -g TMPDIR
     
     # -regarding ! and PIPESTATUS see above
     # -temporarily store output to be able to check for errors
@@ -107,6 +113,10 @@ parse_args()
         case "$1" in
             -t|--targetdev)
                 TARGETDEV="$2"
+                shift 2
+                ;;
+            -e|--tmpdir)
+                TMPDIR="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -173,6 +183,8 @@ check_iso()
         exit 3
     fi
 
+    declare -g ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
+    
     # TODO: opportunistic checkisomd5 verify
 
     return
@@ -196,7 +208,6 @@ check_targetdev()
     fi
 
     TARGETDEVSIZE=$("${BINDIR}/lsblk" -o SIZE --bytes --noheadings --nodeps "$TARGETDEV")
-    ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
     # require gracious 50 MB tolerance to account for filesystem metadata and partitioning
     if [[ "${TARGETDEVSIZE}" -lt $[$ISOSIZE+52428800] ]]; then
         echo "ERROR: $TARGETDEV is too small for the given iso image"
@@ -250,8 +261,6 @@ select_targetdev()
     declare -a blockdevs
     readarray -t blockdevs < <("${BINDIR}/lsblk" -o KNAME --noheadings --nodeps)
 
-    ISOSIZE=$("${BINDIR}/stat" --format=%s "$ISOIMAGE")
-    
     declare -a devmenu
     devmenu=( )
     for d in "${blockdevs[@]}" ; do
@@ -335,11 +344,47 @@ select_targetdev()
     return
 }
 
+clean_tmpdir()
+{
+    # clean up our temp dir, called via EXIT trap
+    "${BINDIR}/rm" -rf "${TMPDIR}"
+}
+
+create_tmpdir()
+{
+    # create tmpdir to unpack to
+    
+    # if not configured we use /tmp
+    if ! [[ -v TMPDIR ]] || [[ -z "$TMPDIR" ]]; then
+        TMPDIR=/tmp
+    fi
+
+    if ! [[ -r "$TMPDIR" && -w "$TMPDIR" ]]; then
+        echo "ERROR: not enough permissions on $TMPDIR"
+        exit 2
+    fi
+    
+    # check free space on temp dir
+    TMPSPACE=$("${BINDIR}/df" --block-size=1 --output=avail "$TMPDIR" | "${BINDIR}/grep" -v "Avail")
+    # require gracious 50 MB tolerance to account for filesystem metadata and inefficiency
+    if [[ "${TMPSPACE}" -lt $[$ISOSIZE+52428800] ]]; then
+        echo "ERROR: not enough space on $TMPDIR"
+        exit 2
+    fi
+
+    # always create a subdir below a given TMPDIR for security/reliability reasons
+    TMPDIR=$("${BINDIR}/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
+
+    # always clean up our tmpdir when the script exits
+    trap clean_tmpdir EXIT
+}
+
 ############# SCRIPT STARTS HERE ####################
 
 parse_args "$@"
 
 check_iso
+create_tmpdir
 
 if [[ -n "$TARGETDEV" ]]; then
     # we got $TARGETDEV as a cmdline option, check if valid
@@ -349,25 +394,6 @@ else
     select_targetdev
     check_targetdev
 fi
-
-# create tmpdir to unpack to
-# default to below /tmp, but allow to change with $TMPDIR
-if ! [[ -v TMPDIR ]] || [[ -z "$TMPDIR" ]]; then
-    TMPDIR=/tmp
-fi
-
-# check free space on temp dir
-TMPSPACE=$("${BINDIR}/df" --block-size=1 --output=avail "$TMPDIR" | "${BINDIR}/grep" -v "Avail")
-# require gracious 50 MB tolerance to account for filesystem metadata and inefficiency
-if [[ "${TMPSPACE}" -lt $[$ISOSIZE+52428800] ]]; then
-    echo "ERROR: not enough space on $TMPDIR"
-    exit 2
-fi
-
-# always create a subdir below a given TMPDIR for security/reliability reasons
-TMPDIR=$("${BINDIR}/mktemp" --tmpdir="${TMPDIR}" --directory tmp.XXXXXXXXXX)
-# errors during main execution will leave the TMPDIR behind
-# useful for finding out what went wrong, but has to be cleaned manually
 
 echo "Unpacking iso image..."
 
@@ -402,9 +428,10 @@ case ${answer:0:1} in
     ;;
 esac
 
-# partition & format target dev
+echo "Partitioning and formatting target device..."
+
 # size not given means until the end of the device
-"${BINDIR}/sfdisk" --wipe always --wipe-partitions always --no-tell-kernel --quiet "${TARGETDEV}" <<EOF
+"${BINDIR}/sfdisk" --wipe always --wipe-partitions always --no-tell-kernel --quiet "${TARGETDEV}" 2>/dev/null <<EOF
 label: dos
 unit: sectors
 sector-size: 512
@@ -457,8 +484,5 @@ echo "Verifying data..."
         exit 3
     fi
 done
-
-# everything successful, so we can clean up our temp dir
-"${BINDIR}/rm" -rf "${TMPDIR}"
 
 echo "Success"
