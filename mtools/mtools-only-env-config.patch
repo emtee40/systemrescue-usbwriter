@@ -1,0 +1,25 @@
+diff -u -r mtools-4.0.42.orig/config.c mtools-4.0.42/config.c
+--- mtools-4.0.42.orig/config.c	2022-10-14 19:08:40.000000000 +0000
++++ mtools-4.0.42/config.c	2022-11-20 14:28:49.469999950 +0000
+@@ -844,21 +844,6 @@
+ 	memcpy(devices, const_devices,
+ 	       nr_const_devices*sizeof(struct device));
+ 
+-    (void) ((parse(CONF_FILE,1) |
+-	     parse(LOCAL_CONF_FILE,1) |
+-	     parse(SYS_CONF_FILE,1)) ||
+-	    (parse(OLD_CONF_FILE,1) |
+-	     parse(OLD_LOCAL_CONF_FILE,1)));
+-    /* the old-name configuration files only get executed if none of the
+-     * new-name config files were used */
+-
+-    homedir = get_homedir();
+-    if ( homedir ){
+-	strncpy(conf_file, homedir, MAXPATHLEN );
+-	conf_file[MAXPATHLEN]='\0';
+-	strcat( conf_file, CFG_FILE1);
+-	parse(conf_file,0);
+-    }
+     memset((char *)&devices[cur_devs],0,sizeof(struct device));
+ 
+     envConfFile = getenv("MTOOLSRC");

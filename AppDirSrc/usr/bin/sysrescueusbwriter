@@ -32,6 +32,11 @@ print_help()
     echo "                               You need enough space there for unpacking the whole"
     echo "                               iso image. Defaults to the TMPDIR environment variable."
     echo ""
+    echo "--appimage-extract             Unpack the AppImage. Overrides other parameters."
+    echo ""
+    echo "--appimage-mount               Mounts the AppImage to a path in TMPDIR, prints out the path."
+    echo "                               Unmounts when terminated with Ctrl+C. Overrides other parameters."
+    echo ""
     echo "-l|--licenses                  Show licenses of all programs packaged in the AppImage."
     echo "                               Use 'e' to view a file and 'q' to quit."
     echo "                               Showing the licenses overrides other parameters."
@@ -561,6 +566,10 @@ EOF
 # we bring our own gconv libs for our glibc, use them
 export GCONV_PATH="${APPDIR}/usr/lib/gconv"
 
+# don't let mtools load any of the systemwide config files
+export MTOOLSRC="${APPDIR}/mtools.conf"
+export MCWD="${APPDIR}/mcwd"
+
 # the filesystem begins at sector 2048, fix backup boot sector at 6 (see below)
 "${BINDIR}/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
 
@@ -569,14 +578,15 @@ echo "Copying files..."
 # copy all files from the iso onto the fat partition
 declare -a firstlevel
 readarray -t firstlevel < <("${BINDIR}/find" "${TMPDIR}/filesystem" -maxdepth 1 -mindepth 1)
-# TODO: print progress, probably by patching mcopy to print a "." every megabyte or something similar
-"${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/
+# our patched mcopy outputs the progress to fd 3, one "." per megabyte
+"${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ 3>&1
 
+echo
 echo "Installing syslinux bootloader..."
 
 # install syslinux on target dev
 # forks several mtools programs, so we need to set the PATH to our dir only
-PATH="${BINDIR}" "${BINDIR}/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576
+PATH="${BINDIR}" "${BINDIR}/syslinux" --directory /sysresccd/boot/syslinux/ --install "${TARGETDEV}" --offset 1048576 3>/dev/null
 
 # install the syslinux MBR, boot from partition 1
 printf '\1' | "${BINDIR}/cat" "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "${BINDIR}/dd" bs=440 count=1 iflag=fullblock conv=notrunc "of=${TARGETDEV}" 2>/dev/null
@@ -596,11 +606,13 @@ echo "Verifying data..."
 # TODO: add patched version of fsck.vfat that can read from offsets and do a filesystem check
 
 # verify output media content
+# our patched mcopy outputs the progress to fd 3, one "." per megabyte
 "${BINDIR}/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
-    if ! "${BINDIR}/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - | "${BINDIR}/cmp" - "${TMPDIR}/filesystem/${line}"; then
+    if ! "${BINDIR}/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - 3>&2 | "${BINDIR}/cmp" - "${TMPDIR}/filesystem/${line}"; then
         echo "ERROR: verification mismatch for file ${line}"
         exit 3
     fi
 done
 
+echo
 echo "Success"

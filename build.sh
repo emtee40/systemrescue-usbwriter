@@ -43,12 +43,8 @@ install_bins=(
     getopt
     grep
     lsblk
-    mattrib
-    mcopy
     mkfs.fat
     mktemp
-    mmove
-    mtools
     nnn
     sed
     sfdisk
@@ -73,6 +69,18 @@ busybox_symlinks=(
 for bin in "${busybox_symlinks[@]}"; do
     ln -s busybox "${HERE}/AppDirBuild/usr/bin/${bin}"
 done
+
+# build & install our own patched mtools
+${HERE}/mtools/build.sh
+
+cp --no-dereference --preserve=links,mode,ownership,timestamps "${HERE}/mtools/build/mtools-4.0.42/mtools" "${HERE}/AppDirBuild/usr/bin/"
+install_bins+=("mtools")
+ln -s mtools "${HERE}/AppDirBuild/usr/bin/mattrib"
+ln -s mtools "${HERE}/AppDirBuild/usr/bin/mcopy"
+ln -s mtools "${HERE}/AppDirBuild/usr/bin/mmove"
+
+mkdir -p "${HERE}/AppDirBuild/usr/share/licenses/mtools"
+cp --no-dereference --preserve=links,mode,ownership,timestamps "${HERE}/mtools/build/mtools-4.0.42/COPYING" "${HERE}/AppDirBuild/usr/share/licenses/mtools"
 
 # install libraries
 # explicitly list them because we need to manually check their licenses
