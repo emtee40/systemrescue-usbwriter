@@ -1,0 +1,31 @@
+#!./usr/bin/bash
+# relative shebang, must be called from AppDir
+#
+# gaugeconv - convert "." chars from stdin to percent values suitable as input for dialog --gauge
+# 
+# Author: Gerd v. Egidy
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# abort on failures
+set -o errexit -o pipefail -o noclobber -o nounset
+
+MAXPOINTS=$1
+
+POINTSNOW=0
+PERCENT=0
+
+while read -n1 -s point ; do
+
+    # ignore all input that is not "."
+    if [[ "$point" == "." ]]; then
+        POINTSNOW=$[$POINTSNOW+1]
+        NEWPERCENT=$[$POINTSNOW*1000/$MAXPOINTS/10]
+        
+        if [[ $NEWPERCENT -ge $[PERCENT+2] ]]; then
+            # only print percent value if it differs more than 2%
+            # dialog was observed to be easily overloaded otherwise
+            PERCENT=$NEWPERCENT
+            echo "$PERCENT"
+        fi
+    fi
+done

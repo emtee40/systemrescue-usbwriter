@@ -59,10 +59,12 @@ done
 declare -a busybox_symlinks
 busybox_symlinks=(
     cat
+    clear
     mkdir
     pgrep
     rm
     stat
+    stty
     sync
 )
 

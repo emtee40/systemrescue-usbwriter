@@ -574,14 +574,13 @@ export MCOPY_SYNC=""
 # the filesystem begins at sector 2048, fix backup boot sector at 6 (see below)
 "${BINDIR}/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
 
-echo "Copying files..."
-
 # copy all files from the iso onto the fat partition
 declare -a firstlevel
 readarray -t firstlevel < <("${BINDIR}/find" "${TMPDIR}/filesystem" -maxdepth 1 -mindepth 1)
 # our patched mcopy outputs the progress to fd 3, one "." per megabyte
 # regularly flush the buffers for a smooth progress bar (this is part of the mtools patch too)
-MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ 3>&1
+MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ \
+    3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --erase-on-exit --gauge "Copying files..." 0 80)
 
 echo
 echo "Installing syslinux bootloader..."
@@ -599,21 +598,42 @@ printf '\1' | "${BINDIR}/cat" "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "
 "${BINDIR}/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin" 2>/dev/null
 "${BINDIR}/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}" 2>/dev/null
 
-# write all caches to drive
+# write all caches to drive before we do verification
 "${BINDIR}/sync" "${TARGETDEV}"
-
-echo "Verifying data..."
 
 # TODO: add patched version of fsck.vfat that can read from offsets and do a filesystem check
 
-# verify output media content
 # our patched mcopy outputs the progress to fd 3, one "." per megabyte
+# run gaugeconv & dialog in the background to display the verification progress
+exec 3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --gauge "Verifying data..." 0 80)
+DIALOGPID=$!
+
+# verify output media content
 "${BINDIR}/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
-    if ! "${BINDIR}/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - 3>&2 | "${BINDIR}/cmp" - "${TMPDIR}/filesystem/${line}"; then
+    exitcode=0
+    "${BINDIR}/mcopy" -i "${TARGETDEV}@@1048576" "::/${line}" - | \
+        "${BINDIR}/cmp" - "${TMPDIR}/filesystem/${line}" >/dev/null || exitcode=$?
+    if [[ $exitcode -ne 0 ]]; then
+        # end gaugeconv & dialog running in the background by closing it's stdin
+        exec 3>&- || exitcode=$?
+        wait $DIALOGPID || exitcode=$?
+        
+        # dialog was aborted and messed up the terminal, we need to clean up first
+        "${BINDIR}/stty" sane || exitcode=$?
+        "${BINDIR}/clear"
+        
+        echo
         echo "ERROR: verification mismatch for file ${line}"
+        echo
         exit 3
     fi
 done
+
+# end gaugeconv & dialog running in the background by closing it's stdin
+exec 3>&- || exitcode=$?
+wait $DIALOGPID || exitcode=$?
+# dialog has ended, but we need to clear the screen
+"${BINDIR}/clear"
 
 echo
 echo "Success"
