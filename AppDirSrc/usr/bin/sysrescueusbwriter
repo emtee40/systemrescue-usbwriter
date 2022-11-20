@@ -569,6 +569,7 @@ export GCONV_PATH="${APPDIR}/usr/lib/gconv"
 # don't let mtools load any of the systemwide config files
 export MTOOLSRC="${APPDIR}/mtools.conf"
 export MCWD="${APPDIR}/mcwd"
+export MCOPY_SYNC=""
 
 # the filesystem begins at sector 2048, fix backup boot sector at 6 (see below)
 "${BINDIR}/mkfs.fat" -F 32 -b 6 -n "${PARTLABEL}" --offset=2048 -I "${TARGETDEV}" >/dev/null
@@ -579,7 +580,8 @@ echo "Copying files..."
 declare -a firstlevel
 readarray -t firstlevel < <("${BINDIR}/find" "${TMPDIR}/filesystem" -maxdepth 1 -mindepth 1)
 # our patched mcopy outputs the progress to fd 3, one "." per megabyte
-"${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ 3>&1
+# regularly flush the buffers for a smooth progress bar (this is part of the mtools patch too)
+MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ 3>&1
 
 echo
 echo "Installing syslinux bootloader..."
@@ -597,9 +599,8 @@ printf '\1' | "${BINDIR}/cat" "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "
 "${BINDIR}/dd" bs=512 count=1 iseek=2048 "if=${TARGETDEV}" "of=${TMPDIR}/fatboosect.bin" 2>/dev/null
 "${BINDIR}/dd" bs=512 count=1 oseek=2054 conv=notrunc,nocreat "if=${TMPDIR}/fatboosect.bin" "of=${TARGETDEV}" 2>/dev/null
 
-# write caches to drive
-# usually does not apply when doing direct access to the device handle, but we want to be sure
-"${BINDIR}/sync"
+# write all caches to drive
+"${BINDIR}/sync" "${TARGETDEV}"
 
 echo "Verifying data..."
 

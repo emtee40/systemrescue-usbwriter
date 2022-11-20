@@ -1,13 +1,14 @@
 diff -r -u mtools-4.0.42.orig/copyfile.c mtools-4.0.42/copyfile.c
 --- mtools-4.0.42.orig/copyfile.c	2022-09-24 08:43:03.000000000 +0000
-+++ mtools-4.0.42/copyfile.c	2022-11-20 12:14:57.109999984 +0000
-@@ -23,13 +23,17 @@
++++ mtools-4.0.42/copyfile.c	2022-11-20 15:20:53.539999960 +0000
+@@ -23,13 +23,19 @@
   * Copy the data from source to target
   */
  
 +// initialized to zero per program call
 +// means it counts across larger files
 +static int byteprogress = 0;
++static int syncprogress = 0;
 +
  mt_off_t copyfile(Stream_t *Source, Stream_t *Target)
  {
@@ -16,11 +17,21 @@ diff -r -u mtools-4.0.42.orig/copyfile.c mtools-4.0.42/copyfile.c
  	ssize_t ret;
  	ssize_t retw;
 -
++	char *synccmd;
 +	
  	if (!Source){
  		fprintf(stderr,"Couldn't open source file\n");
  		return -1;
-@@ -65,6 +69,14 @@
+@@ -40,6 +46,8 @@
+ 		return -1;
+ 	}
+ 
++	synccmd = getenv ("MCOPY_SYNC");
++	
+ 	pos = 0;
+ 	while(1){
+ 		ret = READS(Source, buffer, 8*16384);
+@@ -65,6 +73,25 @@
  			return ret;
  		}
  		pos += ret;
@@ -31,6 +42,17 @@ diff -r -u mtools-4.0.42.orig/copyfile.c mtools-4.0.42/copyfile.c
 +			// print one "." of progress per megabyte
 +			dprintf(3, ".");
 +			byteprogress -= 1048576;
++			syncprogress++;
++			
++			// call a sync cmd every 8 MB
++			// this means much less aggressive buffering of the OS
++			// results in the progress shown to be much more realistic
++			// testing shows it doesn't affect performance when done at this scale
++			if (synccmd && syncprogress >= 8)
++			{
++				system(synccmd);
++				syncprogress=0;
++			}
 +		}
  	}
  	return pos;
