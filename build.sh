@@ -81,9 +81,6 @@ ln -s mtools "${HERE}/AppDirBuild/usr/bin/mattrib"
 ln -s mtools "${HERE}/AppDirBuild/usr/bin/mcopy"
 ln -s mtools "${HERE}/AppDirBuild/usr/bin/mmove"
 
-mkdir -p "${HERE}/AppDirBuild/usr/share/licenses/mtools"
-cp --no-dereference --preserve=links,mode,ownership,timestamps "${HERE}/mtools/build/mtools-4.0.42/COPYING" "${HERE}/AppDirBuild/usr/share/licenses/mtools"
-
 # install libraries
 # explicitly list them because we need to manually check their licenses
 # for compatibility and bundle them if necessary
@@ -183,10 +180,85 @@ patchelf --set-rpath "\$ORIGIN/.." --force-rpath "${HERE}/AppDirBuild/usr/lib/gc
 mkdir -p "${HERE}/AppDirBuild/usr/lib/syslinux/bios"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/syslinux/bios/*.bin "${HERE}/AppDirBuild/usr/lib/syslinux/bios/"
 
-# TODO: install all license files
-mkdir -p "${HERE}/AppDirBuild/usr/share/licenses/sysrescueusbwriter"
-cp --no-dereference --preserve=links,mode,ownership,timestamps "${HERE}/LICENSE" "${HERE}/AppDirBuild/usr/share/licenses/sysrescueusbwriter"
+link_license()
+{
+    local PROG=$1
+    local SPDX=$2
+    local LICFILE
+    
+    case "$SPDX" in
+        GPL-3.0-or-later)
+            LICFILE="../gpl-3.0.txt"
+            ;;
+        GPL-3.0-only)
+            LICFILE="../gpl-3.0.txt"
+            ;;
+        GPL-2.0-or-later)
+            LICFILE="../gpl-2.0.txt"
+            ;;
+        GPL-2.0-only)
+            LICFILE="../gpl-2.0.txt"
+            ;;
+        LGPL-2.1-or-later)
+            LICFILE="../lgpl-2.1.txt"
+            ;;
+        LGPL-2.1-only)
+            LICFILE="../lgpl-2.1.txt"
+            ;;
+        *)
+            echo "ERROR: unknown license $SPDX for program $PROG"
+            exit 1
+            ;;
+    esac
+    
+    mkdir -p "${HERE}/AppDirBuild/usr/share/licenses/${PROG}"
+    ln -s "${LICFILE}" "${HERE}/AppDirBuild/usr/share/licenses/${PROG}/${SPDX}"
+}
 
+copy_license()
+{
+    local PROG=$1
+    local LICFILE=$2
+    
+    mkdir -p "${HERE}/AppDirBuild/usr/share/licenses/${PROG}"
+    cp --no-dereference --preserve=links,mode,ownership,timestamps "$LICFILE" "${HERE}/AppDirBuild/usr/share/licenses/${PROG}"
+}
+
+# symlink common licenses, use SPDX-License-Identifier as the symlink name
+link_license "sysrescueusbwriter" "GPL-3.0-or-later"
+link_license "bash" "GPL-3.0-or-later"
+link_license "busybox" "GPL-2.0-only"
+link_license "isomd5sum" "GPL-2.0-or-later"
+link_license "diffutils" "GPL-3.0-or-later"
+link_license "coreutils" "GPL-3.0-or-later"
+link_license "dialog" "LGPL-2.1-only"
+link_license "findutils" "GPL-3.0-or-later"
+link_license "util-linux" "GPL-2.0-or-later"
+link_license "grep" "GPL-3.0-or-later"
+link_license "dosfstools" "GPL-3.0-or-later"
+link_license "sed" "GPL-3.0-or-later"
+link_license "syslinux" "GPL-2.0-or-later"
+link_license "libisoburn" "GPL-2.0-or-later"
+link_license "mtools" "GPL-3.0-or-later"
+link_license "glibc" "LGPL-2.1-or-later"
+link_license "acl" "LGPL-2.1-or-later"
+link_license "util-linux-libs" "LGPL-2.1-or-later"
+link_license "libburn" "GPL-2.0-or-later"
+link_license "gcc-libs" "GPL-3.0-or-later"
+link_license "libisofs" "GPL-2.0-or-later"
+link_license "readline" "GPL-3.0-or-later"
+
+# this doesn't use the Arch package name but the library name because
+# libudev is LGPL-2.1-or-later while other parts of systemd-libs are licensed differently
+link_license "libudev" "LGPL-2.1-or-later"
+
+# packages with custom licenses or additions
+copy_license "nnn" "/usr/share/licenses/nnn/LICENSE"
+copy_license "gcc-libs" "/usr/share/licenses/gcc-libs/RUNTIME.LIBRARY.EXCEPTION"
+copy_license "ncurses" "/usr/share/licenses/ncurses/COPYING"
+copy_license "pcre2" "/usr/share/licenses/pcre2/LICENSE"
+copy_license "popt" "/usr/share/licenses/popt/LICENSE"
+copy_license "zlib" "/usr/share/licenses/zlib/LICENSE"
 
 PATH="./:${PATH}"
 appimagetool-x86_64.AppImage AppDirBuild sysrescueusbwriter-x86_64.AppImage

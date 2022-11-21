@@ -57,3 +57,11 @@ When running as non-root user, you need to gain write access to the target devic
 tries `sudo`, `pkexec` and `su` (in this order) to change the access rights. One of these programs has to
 be installed and configured for automatic rights acquisition to work. Otherwise the user has to change
 the access rights manually.
+
+### Licensing
+
+The SystemRescue USB writer scripts (and helper scripts) themselves are licensed `GPL-3.0-or-later`.
+
+The AppImage contains separate programs and libraries that are licensed under their own licenses.
+The license texts are contained in the AppImage below `./usr/share/licenses/`. To view the licenses
+either call the AppImage with the `--licenses` parameter or unpack it.
