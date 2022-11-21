@@ -4,12 +4,6 @@ Tool to write SystemRescue to a USB memory stick.
 
 It is packaged as AppImage so it can directly run on most Linux systems.
 
-### Status
-
-Currently only very basic copy is done, many checks and safeties are still missing.
-
-!!! Use with care and don't blame me if you accidently overwrite some important partition !!!
-
 ### Building
 
 - Arch Linux on x86_64 required to build the AppImage
@@ -32,6 +26,11 @@ Currently only very basic copy is done, many checks and safeties are still missi
 -e|--tmpdir=<TMPDIR>           Use the given directory for storing temporary files.
                                You need enough space there for unpacking the whole
                                iso image. Defaults to the TMPDIR environment variable.
+                               
+--appimage-extract             Unpack the AppImage. Overrides other parameters.
+
+--appimage-mount               Mounts the AppImage to a path in TMPDIR, prints out the path.
+                               Unmounts when terminated with Ctrl+C. Overrides other parameters.
 
 -l|--licenses                  Show licenses of all programs packaged in the AppImage.
                                Use 'e' to view a file and 'q' to quit.
@@ -40,6 +39,21 @@ Currently only very basic copy is done, many checks and safeties are still missi
 -h|--help                      Show this help. Overrides other parameters.
 
 ```
+
+### Access rights
+
+When running as non-root user, you usually need to gain write access to the target device.
+
+sysrescueusbwriter checks if permissions are lacking and then tries `sudo`, `pkexec` and `su`
+(in this order) to change the access rights. One of these programs has to be installed and 
+configured for automatic rights acquisition to work. 
+
+Automatic rights acquisition works by chowning the file to the current user ($EUID). Since device
+handles are usually created dynamically by udev, the handle owner is reset when the device is
+disconnected or the system rebooted.
+
+The alternative is that the user/admin grants access rights through alternative means before 
+running sysrescueusbwriter.
 
 ### Requirements and Limitations
 
@@ -53,15 +67,10 @@ AppImage upstream is working on improving this, see [#877](https://github.com/Ap
 
 Viewing the embedded license files requires `less` to be in the $PATH.
 
-When running as non-root user, you need to gain write access to the target device. sysrescueusbwriter
-tries `sudo`, `pkexec` and `su` (in this order) to change the access rights. One of these programs has to
-be installed and configured for automatic rights acquisition to work. Otherwise the user has to change
-the access rights manually.
-
 ### Licensing
 
 The SystemRescue USB writer scripts (and helper scripts) themselves are licensed `GPL-3.0-or-later`.
 
 The AppImage contains separate programs and libraries that are licensed under their own licenses.
-The license texts are contained in the AppImage below `./usr/share/licenses/`. To view the licenses
+The license texts are contained in the AppImage below the path `./usr/share/licenses/`. To view the licenses
 either call the AppImage with the `--licenses` parameter or unpack it.
