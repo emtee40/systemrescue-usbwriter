@@ -4,6 +4,10 @@ Tool to write SystemRescue to a USB memory stick.
 
 It is packaged as AppImage so it can directly run on most Linux systems.
 
+### Download AppImage
+
+Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwriter/-/releases/permalink/latest
+
 ### Building
 
 - Arch Linux on x86_64 required to build the AppImage
