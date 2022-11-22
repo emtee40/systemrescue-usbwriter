@@ -32,6 +32,10 @@ print_help()
     echo "                               You need enough space there for unpacking the whole"
     echo "                               iso image. Defaults to the TMPDIR environment variable."
     echo ""
+    echo "-g|--grant=<TOOL>              <TOOL> being one of: sudo, pkexec, su"
+    echo "                               Use the given tool to grant permissions for accessing the"
+    echo "                               target device node. By default all 3 tools are tried."
+    echo ""
     echo "--appimage-extract             Unpack the AppImage. Overrides other parameters."
     echo ""
     echo "--appimage-mount               Mounts the AppImage to a path in TMPDIR, prints out the path."
@@ -90,13 +94,14 @@ parse_args()
         exit 1
     fi
 
-    local OPTIONS="t:e:lh"
-    local LONGOPTS="targetdev:,tmpdir:,licenses,help"
+    local OPTIONS="t:e:g:lh"
+    local LONGOPTS="targetdev:,tmpdir:,grant:,licenses,help"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
     declare -g ISOIMAGE=""
     declare -g VERBOSE=""
+    declare -g GRANT_TOOL=""
     declare -g TMPDIR
     
     # -regarding ! and PIPESTATUS see above
@@ -123,6 +128,18 @@ parse_args()
             -e|--tmpdir)
                 TMPDIR="$2"
                 shift 2
+                ;;
+            -g|--grant)
+                GRANT_TOOL="$2"
+                shift 2
+                
+                if [[ "$GRANT_TOOL" != "sudo" ]] && \
+                   [[ "$GRANT_TOOL" != "pkexec" ]] && \
+                   [[ "$GRANT_TOOL" != "su" ]] ; then
+                    echo "ERROR: unknown grant tool $GRANT_TOOL"
+                    print_help
+                    exit 1
+                fi
                 ;;
             -h|--help)
                 print_help
@@ -446,22 +463,28 @@ gain_access()
     
     echo "Not enough rights to access $TARGETDEV"
 
-    exitcode=0
-    gain_access_sudo || exitcode=$?
-    if [[ "$exitcode" -eq 0 ]]; then
-        return
+    if [[ -z "$GRANT_TOOL" ]] || [[ "$GRANT_TOOL" == "sudo" ]]; then
+        exitcode=0
+        gain_access_sudo || exitcode=$?
+        if [[ "$exitcode" -eq 0 ]]; then
+            return
+        fi
     fi
 
-    exitcode=0
-    gain_access_pkexec || exitcode=$?
-    if [[ "$exitcode" -eq 0 ]]; then
-        return
+    if [[ -z "$GRANT_TOOL" ]] || [[ "$GRANT_TOOL" == "pkexec" ]]; then
+        exitcode=0
+        gain_access_pkexec || exitcode=$?
+        if [[ "$exitcode" -eq 0 ]]; then
+            return
+        fi
     fi
-    
-    exitcode=0
-    gain_access_su || exitcode=$?
-    if [[ "$exitcode" -eq 0 ]]; then
-        return
+        
+    if [[ -z "$GRANT_TOOL" ]] || [[ "$GRANT_TOOL" == "su" ]]; then
+        exitcode=0
+        gain_access_su || exitcode=$?
+        if [[ "$exitcode" -eq 0 ]]; then
+            return
+        fi
     fi
     
     echo ""
