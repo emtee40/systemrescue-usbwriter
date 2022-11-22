@@ -36,6 +36,8 @@ print_help()
     echo "                               Use the given tool to grant permissions for accessing the"
     echo "                               target device node. By default all 3 tools are tried."
     echo ""
+    echo "-c|--cli                       Do not use the ncurses text UI, only command line"
+    echo ""
     echo "--appimage-extract             Unpack the AppImage. Overrides other parameters."
     echo ""
     echo "--appimage-mount               Mounts the AppImage to a path in TMPDIR, prints out the path."
@@ -94,14 +96,15 @@ parse_args()
         exit 1
     fi
 
-    local OPTIONS="t:e:g:lh"
-    local LONGOPTS="targetdev:,tmpdir:,grant:,licenses,help"
+    local OPTIONS="t:e:g:clh"
+    local LONGOPTS="targetdev:,tmpdir:,grant:,cli,licenses,help"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
     declare -g ISOIMAGE=""
     declare -g VERBOSE=""
     declare -g GRANT_TOOL=""
+    declare -g CLI=0
     declare -g TMPDIR
     
     # -regarding ! and PIPESTATUS see above
@@ -140,6 +143,10 @@ parse_args()
                     print_help
                     exit 1
                 fi
+                ;;
+            -c|--cli)
+                CLI=1
+                shift
                 ;;
             -h|--help)
                 print_help
@@ -266,12 +273,21 @@ check_targetdev()
     fi
 
     if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
-        exitcode=0
-        "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
-            "\nWARNING: $TARGETDEV is not a removable or hotplug device\n\nAre you sure you want to overwrite it?" 9 70 || exitcode=$?
-        if [[ "$exitcode" -ne 0 ]]; then
-            echo "Aborted"
-            exit 1
+        if [[ "$CLI" -eq 1 ]] ; then
+            echo "WARNING: $TARGETDEV is not a removable or hotplug device"
+            read -p "Are you sure you want to overwrite it? (y/n)? " answer
+            if [[ "$answer" != "y" ]] && [[ "$answer" != "Y" ]]; then
+                echo "Aborted"
+                exit 1
+            fi
+        else
+            exitcode=0
+            "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
+                "\nWARNING: $TARGETDEV is not a removable or hotplug device\n\nAre you sure you want to overwrite it?" 9 70 || exitcode=$?
+            if [[ "$exitcode" -ne 0 ]]; then
+                echo "Aborted"
+                exit 1
+            fi
         fi
     fi
 
@@ -291,6 +307,11 @@ check_targetdev()
 
 select_targetdev()
 {
+    if [[ "$CLI" -eq 1 ]] ; then
+        echo "ERROR: please use the -t|--targetdev=<DEVICE-PATH> option when using --cli mode"
+        exit 1
+    fi
+
     # find all suitable hotplug block devices and show them in a dialog
     
     declare -a blockdevs
@@ -566,14 +587,22 @@ if ! echo "$PARTLABEL" | "${BINDIR}/grep" -q "^RESCUE" ; then
     exit 1
 fi
 
-exitcode=0
-"${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
-    "\nAre you sure you want to overwrite all content of $TARGETDEV?" 8 70 || exitcode=$?
-if [[ "$exitcode" -ne 0 ]]; then
-    echo "Aborted"
-    exit 1
+if [[ "$CLI" -eq 1 ]] ; then
+    read -p "Are you sure you want to overwrite all content of $TARGETDEV? (y/n)? " answer
+    if [[ "$answer" != "y" ]] && [[ "$answer" != "Y" ]]; then
+        echo "Aborted"
+        exit 1
+    fi
+else
+    exitcode=0
+    "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
+        "\nAre you sure you want to overwrite all content of $TARGETDEV?" 8 70 || exitcode=$?
+    if [[ "$exitcode" -ne 0 ]]; then
+        echo "Aborted"
+        exit 1
+    fi
 fi
-
+    
 echo "Partitioning and formatting target device..."
 
 # size not given means until the end of the device
@@ -600,11 +629,21 @@ export MCOPY_SYNC=""
 # copy all files from the iso onto the fat partition
 declare -a firstlevel
 readarray -t firstlevel < <("${BINDIR}/find" "${TMPDIR}/filesystem" -maxdepth 1 -mindepth 1)
-# our patched mcopy outputs the progress to fd 3, one "." per megabyte
-# regularly flush the buffers for a smooth progress bar (this is part of the mtools patch too)
-MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ \
-    3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --erase-on-exit --gauge "Copying files..." 0 80)
 
+if [[ "$CLI" -eq 1 ]] ; then
+    echo "Copying files..."
+    # our patched mcopy outputs the progress to fd 3, one "." per megabyte
+    # regularly flush the buffers for a smooth progress bar (this is part of the mtools patch too)
+    MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ \
+        3>&1
+    echo
+else
+    # our patched mcopy outputs the progress to fd 3, one "." per megabyte
+    # regularly flush the buffers for a smooth progress bar (this is part of the mtools patch too)
+    MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ \
+        3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --erase-on-exit --gauge "Copying files..." 0 80)
+fi
+        
 echo
 echo "Installing syslinux bootloader..."
 
@@ -626,11 +665,18 @@ printf '\1' | "${BINDIR}/cat" "${APPDIR}/usr/lib/syslinux/bios/altmbr.bin" - | "
 
 # TODO: add patched version of fsck.vfat that can read from offsets and do a filesystem check
 
-# our patched mcopy outputs the progress to fd 3, one "." per megabyte
-# run gaugeconv & dialog in the background to display the verification progress
-exec 3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --gauge "Verifying data..." 0 80)
-DIALOGPID=$!
-
+if [[ "$CLI" -eq 1 ]] ; then
+    # pipe "." from mcopy to stdout in cli mode
+    exec 3>&1
+    DIALOGPID=0
+    echo "Verifying data..."
+else
+    # our patched mcopy outputs the progress to fd 3, one "." per megabyte
+    # run gaugeconv & dialog in the background to display the verification progress
+    exec 3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --gauge "Verifying data..." 0 80)
+    DIALOGPID=$!
+fi
+    
 # verify output media content
 "${BINDIR}/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
     exitcode=0
@@ -639,11 +685,14 @@ DIALOGPID=$!
     if [[ $exitcode -ne 0 ]]; then
         # end gaugeconv & dialog running in the background by closing it's stdin
         exec 3>&- || exitcode=$?
-        wait $DIALOGPID || exitcode=$?
         
-        # dialog was aborted and messed up the terminal, we need to clean up first
-        "${BINDIR}/stty" sane || exitcode=$?
-        "${BINDIR}/clear"
+        if [[ "$CLI" -ne 1 ]] ; then
+            wait $DIALOGPID || exitcode=$?
+            
+            # dialog was aborted and messed up the terminal, we need to clean up first
+            "${BINDIR}/stty" sane || exitcode=$?
+            "${BINDIR}/clear"
+        fi
         
         echo
         echo "ERROR: verification mismatch for file ${line}"
@@ -654,9 +703,12 @@ done
 
 # end gaugeconv & dialog running in the background by closing it's stdin
 exec 3>&- || exitcode=$?
-wait $DIALOGPID || exitcode=$?
-# dialog has ended, but we need to clear the screen
-"${BINDIR}/clear"
 
+if [[ "$CLI" -ne 1 ]] ; then
+    wait $DIALOGPID || exitcode=$?
+    # dialog has ended, but we need to clear the screen
+    "${BINDIR}/clear"
+fi
+    
 echo
 echo "Success"

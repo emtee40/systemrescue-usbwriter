@@ -29,7 +29,13 @@ Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwri
 -e|--tmpdir=<TMPDIR>           Use the given directory for storing temporary files.
                                You need enough space there for unpacking the whole
                                iso image. Defaults to the TMPDIR environment variable.
-                               
+
+-g|--grant=<TOOL>              <TOOL> being one of: sudo, pkexec, su
+                               Use the given tool to grant permissions for accessing the
+                               target device node. By default all 3 tools are tried.
+
+-c|--cli                       Do not use the ncurses text UI, only command line
+
 --appimage-extract             Unpack the AppImage. Overrides other parameters.
 
 --appimage-mount               Mounts the AppImage to a path in TMPDIR, prints out the path.
