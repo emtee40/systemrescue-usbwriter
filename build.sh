@@ -22,7 +22,73 @@ if ! uname -m | grep -q "x86_64"; then
     exit 1
 fi
 
-# TODO: check for all required pacman packages
+if ! command -v pacman &>/dev/null ; then
+    echo "ERROR: 'pacman' command not found."
+    exit 1
+fi
+
+# ensure all required packages are installed
+
+declare -a required_pkgs
+required_pkgs=(
+    acl
+    bash
+    binutils
+    busybox
+    coreutils
+    dialog
+    diffutils
+    dosfstools
+    findutils
+    fuse2
+    gcc
+    gcc-libs
+    glibc
+    grep
+    isomd5sum
+    libburn
+    libisoburn
+    libisofs
+    libtool
+    make
+    ncurses
+    nnn
+    pacman
+    patch
+    patchelf
+    pcre2
+    popt
+    readline
+    sed
+    squashfs-tools
+    syslinux
+    systemd-libs
+    util-linux
+    util-linux-libs
+    zlib
+)
+
+declare -a missing_pkgs=()
+for pkg in "${required_pkgs[@]}"; do
+    if ! pacman -Q "${pkg}" &>/dev/null ; then
+        missing_pkgs+=("${pkg}")
+    fi
+done
+
+if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
+    echo "ERROR: missing packages. Please install them with pacman and try again:"
+    echo
+    echo "pacman -S" ${missing_pkgs[@]}
+    exit 1
+fi
+
+if ! command -v appimagetool-x86_64.AppImage &>/dev/null && \
+   ! [[ -x "${HERE}/appimagetool-x86_64.AppImage" ]] ; then
+   
+    echo "ERROR: 'appimagetool-x86_64.AppImage' command not found."
+    echo "Please get it from https://github.com/AppImage/AppImageKit/releases"
+    exit 1
+fi
 
 # clean & create build dir
 rm -rf ${HERE}/AppDirBuild/*

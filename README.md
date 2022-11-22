@@ -11,7 +11,6 @@ Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwri
 ### Building
 
 - Arch Linux on x86_64 required to build the AppImage
-- Some packages must be installed, exact list TBD
 - Download `appimagetool-x86_64.AppImage` from https://github.com/AppImage/AppImageKit/releases
 - call `build.sh`
 
