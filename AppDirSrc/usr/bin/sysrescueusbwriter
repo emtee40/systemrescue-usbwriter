@@ -117,7 +117,7 @@ parse_args()
         #  then getopt has complained about wrong arguments to stdout
         echo
         print_help
-        exit 2
+        exit 1
     fi
     # read getopt’s output this way to handle the quoting right:
     eval set -- "$PARSED"
@@ -162,7 +162,7 @@ parse_args()
                 ;;
             *)
                 echo "ERROR: Argument parsing logic bug"
-                exit 2
+                exit 1
                 ;;
         esac
     done
@@ -229,6 +229,78 @@ check_iso()
     fi
 
     return
+}
+
+# check if the iso image is compatible with this version of sysrescueusbwriter
+check_compatibility()
+{
+    if [[ -f "${TMPDIR}/filesystem/sysresccd/.imageinfo" ]]; then
+        # from SystemRescue version 9.06 onwards we have the imageinfo file
+        # if it exists then only use it
+        
+        if ! grep -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | grep -q "ARCH=x86_64"; then
+            echo "ERROR: architecture of the iso image not compatible with this script"
+            exit 3
+        fi
+        
+        local OUR_SYSLINUX_VER=$(cat "${APPDIR}/usr/share/versions/syslinux")
+        if ! grep -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | grep -q "SYSLINUX_VERSION=${OUR_SYSLINUX_VER}\$"; then
+            echo "ERROR: syslinux used in the iso image not compatible with this script"
+            echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
+            exit 3
+        fi
+        
+        if ! grep -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | grep -q "FORMAT_EPOCH=1\$"; then
+            echo "ERROR: format epoch used in the iso image not compatible with this script"
+            echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
+            exit 3
+        fi
+    else
+        # an older version of SystemRescue -> we have to guess about compatibility
+        # we do not whitelist individual versions, but compare arch and syslinux version
+        
+        if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]]; then
+            echo "ERROR: iso image is not compatible with this script. Is this SystemRescue at all?"
+            exit 3
+        fi
+            
+        if ! [[ -f "${TMPDIR}/filesystem/sysresccd/x86_64/airootfs.sfs" ]] || \
+           ! [[ -f "${TMPDIR}/filesystem/sysresccd/pkglist.x86_64.txt" ]]; then
+            echo "ERROR: architecture of the iso image not compatible with this script"
+            exit 3
+        fi
+
+        local OUR_SYSLINUX_VER=$(cat "${APPDIR}/usr/share/versions/syslinux")
+        if ! grep -q "syslinux ${OUR_SYSLINUX_VER}\$" "${TMPDIR}/filesystem/sysresccd/pkglist.x86_64.txt" ; then
+            echo "ERROR: syslinux used in the iso image not compatible with this script"
+            echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
+            exit 3
+        fi
+        
+        if [[ "$CLI" -eq 1 ]] ; then
+            echo
+            echo "WARNING: you seem to be using an iso image of an older version of SystemRescue"
+            echo "Versions before 9.05 have not been thoroughly tested for compatibility with this script"
+            echo
+        else
+            exitcode=0
+            "${BINDIR}/dialog" --erase-on-exit --defaultno --yes-label "Continue" --no-label "Abort" \
+                          --title "WARNING" --yesno "\nYou seem to be using an iso image of an older version of\nSystemRescue. Versions before 9.05 have not been thoroughly\ntested for compatibility with this script" 9 70 || exitcode=$?
+            if [[ "$exitcode" -ne 0 ]]; then
+                echo "Aborted"
+                exit 1
+            fi
+        fi
+    fi
+    
+    # we also must be able to read the iso volume label
+    declare -g PARTLABEL
+    PARTLABEL=$("${BINDIR}/grep" -E "Volume Id *:" "${TMPDIR}/meta-pvd" | "${BINDIR}/sed" -e "s/^Volume Id *: \(.*\)/\1/")
+
+    if ! echo "$PARTLABEL" | "${BINDIR}/grep" -q "^RESCUE" ; then
+        echo "ERROR: can't read iso volume label"
+        exit 3
+    fi
 }
 
 check_targetdev()
@@ -572,20 +644,7 @@ echo "Unpacking iso image..."
 "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info $VERBOSE >"${TMPDIR}/meta-pvd" 2>/dev/null
 "${BINDIR}/xorriso" -osirrox on -drive_access "shared:readonly" -indev "${ISOIMAGE}" -extract / "${TMPDIR}/filesystem" $VERBOSE 2>/dev/null
 
-# TODO: better check that is not hardcoded on version, but detects syslinux version, iso layout and architecture
-if ! [[ -f "${TMPDIR}/filesystem/sysresccd/VERSION" ]] || \
-   ! [[ -d "${TMPDIR}/filesystem/sysresccd/x86_64" ]] || \
-   ! "${BINDIR}/grep" -q "9.05" "${TMPDIR}/filesystem/sysresccd/VERSION" ; then
-    echo "ERROR: iso image is not compatible with this script. It only works with SystemRescue 9.05 x86_64"
-    exit 2
-fi
-
-PARTLABEL=$("${BINDIR}/grep" -E "Volume Id *:" "${TMPDIR}/meta-pvd" | "${BINDIR}/sed" -e "s/^Volume Id *: \(.*\)/\1/")
-
-if ! echo "$PARTLABEL" | "${BINDIR}/grep" -q "^RESCUE" ; then
-    echo "ERROR: can't read iso volume label"
-    exit 1
-fi
+check_compatibility
 
 if [[ "$CLI" -eq 1 ]] ; then
     read -p "Are you sure you want to overwrite all content of $TARGETDEV? (y/n)? " answer

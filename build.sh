@@ -70,7 +70,7 @@ required_pkgs=(
 
 declare -a missing_pkgs=()
 for pkg in "${required_pkgs[@]}"; do
-    if ! pacman -Q "${pkg}" &>/dev/null ; then
+    if ! pacman -Q "${pkg}" >/dev/null 2>&1 ; then
         missing_pkgs+=("${pkg}")
     fi
 done
@@ -245,6 +245,10 @@ patchelf --set-rpath "\$ORIGIN/.." --force-rpath "${HERE}/AppDirBuild/usr/lib/gc
 # install syslinux boot blocks
 mkdir -p "${HERE}/AppDirBuild/usr/lib/syslinux/bios"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/syslinux/bios/*.bin "${HERE}/AppDirBuild/usr/lib/syslinux/bios/"
+
+# store exact syslinux version for compatibility check
+mkdir -p "${HERE}/AppDirBuild/usr/share/versions"
+pacman -Q syslinux | sed -e "s#syslinux \(.*\)#\1#" >"${HERE}/AppDirBuild/usr/share/versions/syslinux"
 
 link_license()
 {
