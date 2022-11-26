@@ -25,6 +25,10 @@ Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwri
 -t|--targetdev=<DEVICE-PATH>   Device file of the USB media you want to write to.
                                Something like /dev/sdb.
                                A text UI to select a likely device is shown if missing.
+                               
+-i|--verify-only=<DEVICE-PATH> Don't write out the image, but just compare the current
+                               content on the given device to the image.
+                               Can't be used together with -t|--targetdev.
 
 -e|--tmpdir=<TMPDIR>           Use the given directory for storing temporary files.
                                You need enough space there for unpacking the whole
