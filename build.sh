@@ -181,11 +181,34 @@ for lib in "${install_libs[@]}"; do
     cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/${lib}.so.* "${HERE}/AppDirBuild/usr/lib/"
 done
 
+# properly check if a program is dynamically link or a shared library
+# works reliably with -o errexit -o pipefail
+is_dynamic_exec()
+{
+    local FILE=$1
+    
+    local exitcode=0
+    local lddout
+    
+    lddout=$(ldd "$FILE" 2>&1 || exitcode=$?)
+    
+    if [[ $exitcode -ne 0 ]]; then
+        # ldd returned an error code
+        return 1
+    fi
+    
+    if echo "$lddout" | grep -q "\(not a dynamic executable\|statically linked\)"; then
+        # ldd returned no error code, but found no dynamic executable
+        return 1
+    fi
+    
+    return 0
+}
+
 # check used libs
 for bin in "${install_bins[@]}"; do
 
-    # busybox is statically linked
-    if [[ "$bin" == "busybox" ]]; then
+    if ! is_dynamic_exec "${HERE}/AppDirBuild/usr/bin/${bin}"; then
         continue
     fi
 
@@ -212,51 +235,54 @@ done
 
 # check used libs in libs
 ls -1 "${HERE}/AppDirBuild/usr/lib/" | while read -r libline; do
-    if ldd "${HERE}/AppDirBuild/usr/lib/${libline}" 2>&1 | grep -q -v -E "(not a dynamic executable|statically linked)"; then
-    
-        ldd "${HERE}/AppDirBuild/usr/lib/${libline}" | while read -r line; do
-            # ignore vdso & ld-linux, they are necessary for shared libs and are expteced to be always available on the target
-            if ! echo $line | grep -q "linux-vdso.so" && ! echo $line | grep -q "ld-linux-x86-64.so" ; then
-                found=0
-                
-                # check against the list of libs we installed
-                for lib in "${install_libs[@]}"; do
-                    if echo $line | grep -q "${lib}.so." ; then
-                        found=1
-                        break
-                    fi
-                done
-                
-                if [[ $found -eq 0 ]] ; then
-                    echo "ERROR: library linked into ${libline} not found: ${line}"
-                    exit 1
-                fi
-            fi
-        done
+
+    if ! [[ -f "${HERE}/AppDirBuild/usr/lib/${libline}" ]] || ! is_dynamic_exec "${HERE}/AppDirBuild/usr/lib/${libline}"; then
+        continue
     fi
+
+    ldd "${HERE}/AppDirBuild/usr/lib/${libline}" | while read -r line; do
+        # ignore vdso & ld-linux, they are necessary for shared libs and are expteced to be always available on the target
+        if ! echo $line | grep -q "linux-vdso.so" && ! echo $line | grep -q "ld-linux-x86-64.so" ; then
+            found=0
+            
+            # check against the list of libs we installed
+            for lib in "${install_libs[@]}"; do
+                if echo $line | grep -q "${lib}.so." ; then
+                    found=1
+                    break
+                fi
+            done
+            
+            if [[ $found -eq 0 ]] ; then
+                echo "ERROR: library linked into ${libline} not found: ${line}"
+                exit 1
+            fi
+        fi
+    done
 done
 
 # set rpath & ELF interpreter for binaries
 for bin in "${install_bins[@]}"; do
-    if ldd "${HERE}/AppDirBuild/usr/bin/${bin}" 2>&1 | grep -q -v -E "(not a dynamic executable|statically linked)"; then
-        # patch the ELF interpreter: that is the library responsible for loading shared libraries = ld-linux.so
-        # it must exactly match the libc version. Since we bring our own libc, we use a relative interpreter path
-        # this means the whole AppImage must be run with the current path set to the root of the AppDir
-        # AppRun is responsible for storing the current path, pushd, popd etc.
-        patchelf --set-interpreter "./usr/lib/ld-linux-x86-64.so.2" "${HERE}/AppDirBuild/usr/bin/${bin}"
 
-        # once the ELF interpreter is loaded, it can understand rpaths with $ORIGIN, meaning relative to the
-        # location of the binary or library
-        patchelf --set-rpath "\$ORIGIN/../lib/" --force-rpath "${HERE}/AppDirBuild/usr/bin/${bin}"
-        
+    if ! is_dynamic_exec "${HERE}/AppDirBuild/usr/bin/${bin}"; then
+        continue
     fi
+
+    # patch the ELF interpreter: that is the library responsible for loading shared libraries = ld-linux.so
+    # it must exactly match the libc version. Since we bring our own libc, we use a relative interpreter path
+    # this means the whole AppImage must be run with the current path set to the root of the AppDir
+    # AppRun is responsible for storing the current path, pushd, popd etc.
+    patchelf --set-interpreter "./usr/lib/ld-linux-x86-64.so.2" "${HERE}/AppDirBuild/usr/bin/${bin}"
+
+    # once the ELF interpreter is loaded, it can understand rpaths with $ORIGIN, meaning relative to the
+    # location of the binary or library
+    patchelf --set-rpath "\$ORIGIN/../lib/" --force-rpath "${HERE}/AppDirBuild/usr/bin/${bin}"
 done
 
 # set rpath for libraries
 ls -1 "${HERE}/AppDirBuild/usr/lib/" | while read -r line; do
     if [[ -f "${HERE}/AppDirBuild/usr/lib/${line}" ]] && \
-       ! [[ -L "${HERE}/AppDirBuild/usr/lib/${line}" ]] && \
-       ! ldd "${HERE}/AppDirBuild/usr/lib/${line}" | grep -q -E "(not a dynamic executable|statically linked)"; then
+       ! [[ -L "${HERE}/AppDirBuild/usr/lib/${line}" ]] && is_dynamic_exec "${HERE}/AppDirBuild/usr/lib/${line}"; then
         # ensure exec permissions
         chmod 755 "${HERE}/AppDirBuild/usr/lib/${line}"
         
