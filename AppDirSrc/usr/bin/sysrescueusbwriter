@@ -307,6 +307,7 @@ check_compatibility()
             echo "ERROR: iso image is not compatible with this script. Is this SystemRescue at all?"
             exit 3
         fi
+        local ver=$(cat "${TMPDIR}/filesystem/sysresccd/VERSION")
             
         if ! [[ -f "${TMPDIR}/filesystem/sysresccd/x86_64/airootfs.sfs" ]] || \
            ! [[ -f "${TMPDIR}/filesystem/sysresccd/pkglist.x86_64.txt" ]]; then
@@ -320,20 +321,23 @@ check_compatibility()
             echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
             exit 3
         fi
-        
-        if [[ "$CLI" -eq 1 ]] ; then
-            echo
-            echo "WARNING: you seem to be using an iso image of an older version of SystemRescue"
-            echo "Versions before 9.05 have not been thoroughly tested for compatibility with this script"
-            echo
-        else
-            exitcode=0
-                TERMINFO="${APPDIR}/usr/share/terminfo" \
-                    "${BINDIR}/dialog" --erase-on-exit --defaultno --yes-label "Continue" --no-label "Abort" \
-                          --title "WARNING" --yesno "\nYou seem to be using an iso image of an older version of\nSystemRescue. Versions before 9.05 have not been thoroughly\ntested for compatibility with this script" 9 70 || exitcode=$?
-            if [[ "$exitcode" -ne 0 ]]; then
-                echo "Aborted"
-                exit 1
+
+        # 9.05 doesn't have an imageinfo, but was still tested for compatibility
+        if [[ "$ver" != "9.05" ]]; then
+            if [[ "$CLI" -eq 1 ]] ; then
+                echo
+                echo "WARNING: you seem to be using an iso image of an older version of SystemRescue"
+                echo "Versions before 9.05 have not been thoroughly tested for compatibility with this script"
+                echo
+            else
+                exitcode=0
+                    TERMINFO="${APPDIR}/usr/share/terminfo" \
+                        "${BINDIR}/dialog" --erase-on-exit --defaultno --yes-label "Continue" --no-label "Abort" \
+                            --title "WARNING" --yesno "\nYou seem to be using an iso image of an older version of\nSystemRescue. Versions before 9.05 have not been thoroughly\ntested for compatibility with this script" 9 70 || exitcode=$?
+                if [[ "$exitcode" -ne 0 ]]; then
+                    echo "Aborted"
+                    exit 1
+                fi
             fi
         fi
     fi
