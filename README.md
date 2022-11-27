@@ -1,18 +1,12 @@
 # SystemRescue USB writer
 
-Tool to write SystemRescue to a USB memory stick.
+Tool to write [SystemRescue](https://system-rescue.org) to a USB memory stick.
 
 It is packaged as AppImage so it can directly run on most Linux systems.
 
 ### Download AppImage
 
 Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwriter/-/releases/permalink/latest
-
-### Building
-
-- Arch Linux on x86_64 required to build the AppImage
-- Download `appimagetool-x86_64.AppImage` from https://github.com/AppImage/AppImageKit/releases
-- call `build.sh`
 
 ### Running
 
@@ -58,7 +52,7 @@ Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwri
 When running as non-root user, you usually need to gain write access to the target device.
 
 sysrescueusbwriter checks if permissions are lacking and then tries `sudo`, `pkexec` and `su`
-(in this order) to change the access rights. One of these programs has to be installed and 
+(in this order) to change the access rights. One of these programs has to be installed, be in $PATH and 
 configured for automatic rights acquisition to work. 
 
 Automatic rights acquisition works by chowning the file to the current user ($EUID). Since device
@@ -70,15 +64,35 @@ running sysrescueusbwriter.
 
 ### Requirements and Limitations
 
-All AppImages need `libfuse.so.2` to run. On some systems it is not installed by default.
-For example on CentOS 7 you need `sudo yum install fuse-libs`. On Ubuntu 22.04 you need 
-`sudo apt install libfuse2`.
+All AppImages need `libfuse.so.2`, `fusermount` and glibc to run. On some systems these are not installed by default
+and might need to be installed manually:
 
-Also you need glibc for it to work. This seems to require changes on NixOS and Alpine Linux.
+| Distribution                  | Install command                                                                  |
+| ----------------------------- |----------------------------------------------------------------------------------|
+| Alpine Linux                  | `doas apk add gcompat fuse doas-sudo-shim; doas modprobe fuse` <sup>*)</sup>     |
+| Arch Linux                    | `sudo pacman -S fuse2`                                                           |
+| CentOS 7                      | `sudo yum install fuse-libs`                                                     |
+| NixOS                         | `nix-env -iA nixos.appimage-run`                                                 |
+|                               | Then run: `appimage-run sysrescueusbwriter-x86_64.AppImage ...`                   |
+| Ubuntu 22.04 and newer        | `sudo apt install libfuse2`                                                      |
 
-AppImage upstream is working on improving this, see [#877](https://github.com/AppImage/AppImageKit/issues/877).
+<sup>*)</sup> Requires the "community" repository to be enabled in `/etc/apk/repositories`
+
+AppImage upstream is working on reducing these dependencies, see [#877](https://github.com/AppImage/AppImageKit/issues/877).
 
 Viewing the embedded license files requires `less` to be in the $PATH.
+
+
+### Screenshots
+
+| [<img src="./images/screenshot1.png" alt="Screenshot1" width="400"/>](./images/screenshot1.png) | [<img src="./images/screenshot2.png" alt="Screenshot2" width="400"/>](./images/screenshot2.png) |
+
+### Building
+
+- Arch Linux on x86_64 required to build the AppImage
+- Download `appimagetool-x86_64.AppImage` from https://github.com/AppImage/AppImageKit/releases
+- call `build.sh`
+- The build script will notify you of missing packages required for building
 
 ### Licensing
 
