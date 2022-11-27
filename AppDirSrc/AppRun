@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# OWD should usually be available in an AppImage environment
+if [ -z "${OWD+x}" ]; then
+    # $OWD is not set. This seems to be an issue in nixos.appimage-run
+    # set it manually as workaround
+    export OWD=`pwd`
+fi
+
 # since the ELF interpreter (=ld-linux.so) is at a relative path we must set the
 # current directory to the mounted root of the AppDir (=${APPDIR}) for the whole runtime
 
