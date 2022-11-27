@@ -389,7 +389,8 @@ check_targetdev()
         exit 2
     fi
 
-    if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" ; then
+    if ! "${BINDIR}/lsblk" -o HOTPLUG --noheadings --nodeps "$TARGETDEV" | "${BINDIR}/grep" -q "1" && \
+       [[ $VERIFY_ONLY -ne 1 ]]; then
         if [[ "$CLI" -eq 1 ]] ; then
             echo "WARNING: $TARGETDEV is not a removable or hotplug device"
             read -p "Are you sure you want to overwrite it? (y/n)? " answer
