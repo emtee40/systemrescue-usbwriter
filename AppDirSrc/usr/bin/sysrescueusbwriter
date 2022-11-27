@@ -738,7 +738,16 @@ verify_image()
         exec 3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --gauge "Verifying data..." 0 80)
         DIALOGPID=$!
     fi
-        
+
+    # FAT tools need to convert to/from codepage 850, the dos default
+    # we bring our own gconv libs for our glibc, use them
+    export GCONV_PATH="${APPDIR}/usr/lib/gconv"
+
+    # don't let mtools load any of the systemwide config files
+    export MTOOLSRC="${APPDIR}/mtools.conf"
+    export MCWD="${APPDIR}/mcwd"
+    export MCOPY_SYNC=""
+    
     # verify output media content
     "${BINDIR}/find" "${TMPDIR}/filesystem/" -type f -printf "%P\n" | while read -r line; do
         exitcode=0
