@@ -231,8 +231,10 @@ check_iso()
     echo "Checking ISO image..."
    
     # check if we really have an iso file as source and not something else
-    if ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 ||
-        "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | "${BINDIR}/grep" -E "(is blank|Drive address .* rejected)"; then
+    if ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc >/dev/null 2>&1 || \
+       ! "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -pvd_info >/dev/null 2>&1 || \
+        "${BINDIR}/xorriso" -drive_access "shared:readonly" -indev "${ISOIMAGE}" -toc 2>&1 | \
+            "${BINDIR}/grep" -E "(is blank|No ISO 9660 image|Drive address .* rejected)"; then
         echo "ERROR: $ISOIMAGE is not a valid ISO file"
         exit 3
     fi
