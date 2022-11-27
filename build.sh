@@ -298,6 +298,9 @@ cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/gc
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/gconv-modules.d/gconv-modules-extra.conf "${HERE}/AppDirBuild/usr/lib/gconv/gconv-modules.d"
 patchelf --set-rpath "\$ORIGIN/.." --force-rpath "${HERE}/AppDirBuild/usr/lib/gconv/IBM850.so"
 
+# copy terminfo data for ncurses
+cp --no-dereference -r --preserve=links,mode,ownership,timestamps /usr/share/terminfo/ "${HERE}/AppDirBuild/usr/share/"
+
 # install syslinux boot blocks
 mkdir -p "${HERE}/AppDirBuild/usr/lib/syslinux/bios"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/syslinux/bios/*.bin "${HERE}/AppDirBuild/usr/lib/syslinux/bios/"

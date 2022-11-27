@@ -256,6 +256,25 @@ check_iso()
     return
 }
 
+check_dialog()
+{
+    # test if the dialog command is working
+    # there might for example be some problem with the terminfo database
+    # we then want to be able to show some meaningful error to the user
+    
+    exitcode=0
+    TERMINFO="${APPDIR}/usr/share/terminfo" \
+        "${BINDIR}/dialog" --erase-on-exit --infobox "dialog/ncurses test" 0 0 || exitcode=$?
+    
+    if [[ "$exitcode" -ne 0 ]]; then
+        # checksum either not there or not matching
+        echo "ERROR: can't execute dialog/ncurses. Maybe unknown terminal type ($TERM)?"
+        echo
+        echo "Hint: you can use command line only with the --cli parameter"
+        exit 2
+    fi
+}
+
 # check if the iso image is compatible with this version of sysrescueusbwriter
 check_compatibility()
 {
@@ -309,7 +328,8 @@ check_compatibility()
             echo
         else
             exitcode=0
-            "${BINDIR}/dialog" --erase-on-exit --defaultno --yes-label "Continue" --no-label "Abort" \
+                TERMINFO="${APPDIR}/usr/share/terminfo" \
+                    "${BINDIR}/dialog" --erase-on-exit --defaultno --yes-label "Continue" --no-label "Abort" \
                           --title "WARNING" --yesno "\nYou seem to be using an iso image of an older version of\nSystemRescue. Versions before 9.05 have not been thoroughly\ntested for compatibility with this script" 9 70 || exitcode=$?
             if [[ "$exitcode" -ne 0 ]]; then
                 echo "Aborted"
@@ -379,7 +399,8 @@ check_targetdev()
             fi
         else
             exitcode=0
-            "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
+            TERMINFO="${APPDIR}/usr/share/terminfo" \
+                "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
                 "\nWARNING: $TARGETDEV is not a removable or hotplug device\n\nAre you sure you want to overwrite it?" 9 70 || exitcode=$?
             if [[ "$exitcode" -ne 0 ]]; then
                 echo "Aborted"
@@ -483,7 +504,8 @@ select_targetdev()
     # let user select between all devices in a ncurses dialog
     exec 3>&1;
     exitcode=0
-    SELECTED=$("${BINDIR}/dialog" --erase-on-exit --title "Select target device" \
+    SELECTED=$(TERMINFO="${APPDIR}/usr/share/terminfo" \
+        "${BINDIR}/dialog" --erase-on-exit --title "Select target device" \
         --menu "Select device to write SystemRescue to" 0 0 0 "${devmenu[@]}" 2>&1 1>&3) || exitcode=$?
     exec 3>&-
 
@@ -656,7 +678,8 @@ write_image()
         fi
     else
         exitcode=0
-        "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
+        TERMINFO="${APPDIR}/usr/share/terminfo" \
+            "${BINDIR}/dialog" --erase-on-exit --defaultno --title "Overwriting $TARGETDEV" --yesno \
             "\nAre you sure you want to overwrite all content of $TARGETDEV?" 8 70 || exitcode=$?
         if [[ "$exitcode" -ne 0 ]]; then
             echo "Aborted"
@@ -702,7 +725,8 @@ EOF
         # our patched mcopy outputs the progress to fd 3, one "." per megabyte
         # regularly flush the buffers for a smooth progress bar (this is part of the mtools patch too)
         MCOPY_SYNC="\"${BINDIR}/sync\" \"${TARGETDEV}\"" "${BINDIR}/mcopy" -spQm "${firstlevel[@]}" -i "${TARGETDEV}@@1048576" ::/ \
-            3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --erase-on-exit --gauge "Copying files..." 0 80)
+            3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | TERMINFO="${APPDIR}/usr/share/terminfo" \
+                 "${BINDIR}/dialog" --erase-on-exit --gauge "Copying files..." 0 80)
     fi
             
     echo
@@ -735,7 +759,8 @@ verify_image()
     else
         # our patched mcopy outputs the progress to fd 3, one "." per megabyte
         # run gaugeconv & dialog in the background to display the verification progress
-        exec 3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | "${BINDIR}/dialog" --gauge "Verifying data..." 0 80)
+        exec 3> >("${BINDIR}/gaugeconv" $[$ISOSIZE/1048576] | TERMINFO="${APPDIR}/usr/share/terminfo" \
+                "${BINDIR}/dialog" --gauge "Verifying data..." 0 80)
         DIALOGPID=$!
     fi
 
@@ -788,6 +813,10 @@ parse_args "$@"
 
 check_iso
 create_tmpdir
+
+if [[ "$CLI" -ne 1 ]] ; then
+    check_dialog
+fi
 
 if [[ -n "$TARGETDEV" ]]; then
     # we got $TARGETDEV as a cmdline option, check if valid
