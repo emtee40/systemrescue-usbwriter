@@ -3,11 +3,11 @@
 # since the ELF interpreter (=ld-linux.so) is at a relative path we must set the
 # current directory to the mounted root of the AppDir (=${APPDIR}) for the whole runtime
 
-pushd "${APPDIR}" >/dev/null
+cd "${APPDIR}"
 
 "${APPDIR}/usr/bin/bash" "${APPDIR}/usr/bin/sysrescueusbwriter" "$@"
 RET=$?
 
-popd >/dev/null
+cd "${OWD}"
 
 exit $RET
