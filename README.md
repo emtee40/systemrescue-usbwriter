@@ -6,7 +6,7 @@ It is packaged as AppImage so it can directly run on most Linux systems.
 
 ### Download AppImage
 
-Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwriter/-/releases/permalink/latest
+Get the latest release build from https://gitlab.com/systemrescue/systemrescue-usbwriter/-/releases/
 
 ### Signatures and Verification
 
