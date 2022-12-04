@@ -8,6 +8,14 @@ It is packaged as AppImage so it can directly run on most Linux systems.
 
 Get the latest release build from https://gitlab.com/gvegidy/systemrescue-usbwriter/-/releases/permalink/latest
 
+### Signatures and Verification
+
+All official releases of the AppImages are digitally signed to allow checking the authenticity.
+These signatures are made with GnuPG using the same key as SystemRescue itself. 
+See [here](https://www.system-rescue.org/Download/) for the key and how to verify.
+
+To sign an AppImage yourself use the `sign.sh` script.
+
 ### Running
 
 - `chmod 755 sysrescueusbwriter-x86_64.AppImage`
@@ -124,3 +132,4 @@ The SystemRescue USB writer scripts (and helper scripts) themselves are licensed
 The AppImage contains separate programs and libraries that are licensed under their own licenses.
 The license texts are contained in the AppImage below the path `./usr/share/licenses/`. To view the licenses
 either call the AppImage with the `--licenses` parameter or unpack it.
+

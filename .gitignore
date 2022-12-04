@@ -1,3 +1,6 @@
 AppDirBuild
 *.AppImage
+*.AppImage.asc
+*.AppImage.sha256
+*.AppImage.sha512
 */build/*
