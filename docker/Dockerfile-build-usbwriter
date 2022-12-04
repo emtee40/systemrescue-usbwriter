@@ -1,6 +1,6 @@
 FROM archlinux:latest
 RUN mkdir -p /workspace
-RUN pacman -Syyu --noconfirm binutils busybox dialog diffutils dosfstools gcc make patch patchelf fuse2 && rm -rf /var/cache/pacman/pkg/*
+RUN pacman -Syyu --noconfirm binutils busybox dialog diffutils dosfstools gcc git make patch patchelf fuse2 && rm -rf /var/cache/pacman/pkg/*
 RUN pacman -Syyu --noconfirm isomd5sum libburn libisoburn libisofs libtool nnn squashfs-tools syslinux && rm -rf /var/cache/pacman/pkg/*
 RUN curl --location --output /usr/local/bin/appimagetool-x86_64.AppImage https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
 RUN chmod +x /usr/local/bin/appimagetool*

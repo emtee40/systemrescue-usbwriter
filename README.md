@@ -53,6 +53,9 @@ To sign an AppImage yourself use the `sign.sh` script.
 
 -h|--help                      Show this help. Overrides other parameters.
 
+-V|--version                   Show the version number of sysrescueusbwriter.
+                               Overrides other parameters.
+
 ```
 
 ### Access rights
