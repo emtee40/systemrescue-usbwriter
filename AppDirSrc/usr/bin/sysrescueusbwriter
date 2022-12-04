@@ -6,7 +6,7 @@
 # Author: Gerd v. Egidy
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# https://gitlab.com/systemrescue/systemrescue-sources/-/issues/284
+# https://gitlab.com/systemrescue/systemrescue-usbwriter
 
 BINDIR="${APPDIR}/usr/bin"
 
@@ -53,7 +53,7 @@ print_help()
     echo ""
     echo "-h|--help                      Show this help. Overrides other parameters."
     echo ""
-    echo "See https://gitlab.com/systemrescue/systemrescue-sources/-/issues/284 for details."
+    echo "See https://gitlab.com/systemrescue/systemrescue-usbwriter for details."
     
     return
 }
