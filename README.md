@@ -87,12 +87,31 @@ Viewing the embedded license files requires `less` to be in the $PATH.
 
 | [<img src="./images/screenshot1.png" alt="Screenshot1" width="400"/>](./images/screenshot1.png) | [<img src="./images/screenshot2.png" alt="Screenshot2" width="400"/>](./images/screenshot2.png) |
 
-### Building
+### Building without docker
 
 - Arch Linux on x86_64 required to build the AppImage
 - Download `appimagetool-x86_64.AppImage` from https://github.com/AppImage/AppImageKit/releases
 - call `build.sh`
 - The build script will notify you of missing packages required for building
+
+## Building with docker
+
+If you are not running Arch Linux or if your system does not have all the
+required packages installed, you can run the build process in a docker
+container. You need to have a Linux system running with docker installed
+and configured. You can use the helper scripts provided in the `docker`
+folder in this repository.
+
+First you must run the script which builds a new docker image based on Arch Linux,
+and then you must run the wrapper script which uses the new docker image to run the
+usbwriter build process inside docker. The wrapper script will pass the arguments it
+receives to the main `build.sh` script.
+
+In other words, you need to run the following two scripts:
+```
+./docker/build-docker-image.sh
+./docker/build-usbwriter.sh
+```
 
 ### Licensing
 
