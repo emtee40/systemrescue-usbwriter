@@ -94,7 +94,7 @@ Viewing the embedded license files requires `less` to be in the $PATH.
 - call `build.sh`
 - The build script will notify you of missing packages required for building
 
-## Building with docker
+### Building with docker or podman
 
 If you are not running Arch Linux or if your system does not have all the
 required packages installed, you can run the build process in a docker
@@ -112,6 +112,10 @@ In other words, you need to run the following two scripts:
 ./docker/build-docker-image.sh
 ./docker/build-usbwriter.sh
 ```
+
+These scripts call the `docker` command from your `$PATH` by default. But you can use the `DOCKER_CMD`
+environment variable to override that. This allows you for example to use podman instead of docker:
+`DOCKER_CMD=podman ./docker/build-docker-image.sh`.
 
 ### Licensing
 
