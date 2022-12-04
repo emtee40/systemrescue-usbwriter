@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env bash
 
 if [ -z ${DOCKER_CMD+x} ]; then
     # $DOCKER_CMD is not set -> use the default
