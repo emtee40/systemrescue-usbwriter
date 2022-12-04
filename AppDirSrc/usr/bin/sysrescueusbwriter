@@ -13,9 +13,15 @@ BINDIR="${APPDIR}/usr/bin"
 # abort on failures
 set -o errexit -o pipefail -o noclobber -o nounset
 
+print_version()
+{
+    cat "${APPDIR}/usr/share/versions/sysrescueusbwriter"
+}
+
 print_help()
 {
     echo "sysrescueusbwriter - write an iso image of SystemRescue to USB media"
+    echo -n "Version " ; print_version
     echo ""
     echo "Usage:"
     echo "sysrescueusbwriter-x86_64.AppImage [OPTIONS] <ISO-FILE>"
@@ -52,6 +58,9 @@ print_help()
     echo "                               Showing the licenses overrides other parameters."
     echo ""
     echo "-h|--help                      Show this help. Overrides other parameters."
+    echo ""
+    echo "-V|--version                   Show the version number of sysrescueusbwriter."
+    echo "                               Overrides other parameters."
     echo ""
     echo "See https://gitlab.com/systemrescue/systemrescue-usbwriter for details."
     
@@ -100,8 +109,8 @@ parse_args()
         exit 1
     fi
 
-    local OPTIONS="t:i:e:g:clh"
-    local LONGOPTS="targetdev:,verify-only:,tmpdir:,grant:,cli,licenses,help"
+    local OPTIONS="t:i:e:g:clhV"
+    local LONGOPTS="targetdev:,verify-only:,tmpdir:,grant:,cli,licenses,help,version"
 
     # option variables as globals, set to default values
     declare -g TARGETDEV=""
@@ -173,6 +182,10 @@ parse_args()
                 ;;
             -h|--help)
                 print_help
+                exit 0
+                ;;
+            -V|--version)
+                print_version
                 exit 0
                 ;;
             -l|--licenses)

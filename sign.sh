@@ -38,9 +38,16 @@ if ! command -v appimagetool-x86_64.AppImage &>/dev/null ; then
     exit 1
 fi
 
-if [[ ! -f "$APPIMAGE_FILE" ]]; then
+if [[ ! -x "$APPIMAGE_FILE" ]]; then
     echo "ERROR: can't find $APPIMAGE_FILE in current directory"
     exit 1
+fi
+
+if "${OWD}/${APPIMAGE_FILE}" --version | grep -E -q "^git-|\?\?\?\?" ; then
+    echo "ERROR: this is not a tagged release. Please only sign properly tagged releases"
+    echo -n "Version "
+    "${OWD}/${APPIMAGE_FILE}" --version
+    exit 10
 fi
 
 SIGNKEY=""

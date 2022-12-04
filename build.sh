@@ -43,6 +43,7 @@ required_pkgs=(
     fuse2
     gcc
     gcc-libs
+    git
     glibc
     grep
     isomd5sum
@@ -308,6 +309,23 @@ cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/syslinux
 # store exact syslinux version for compatibility check
 mkdir -p "${HERE}/AppDirBuild/usr/share/versions"
 pacman -Q syslinux | sed -e "s#syslinux \(.*\)#\1#" >"${HERE}/AppDirBuild/usr/share/versions/syslinux"
+
+# store git commit id or tag of sysrescueusbwriter
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1 ; then
+    # we have git, use it
+    COMMIT_ID=$(git rev-parse HEAD)
+    
+    if git describe --tags --exact-match "$COMMIT_ID" >/dev/null 2>&1; then
+        # we have a tag for the current commit, use it
+        git describe --tags --exact-match "$COMMIT_ID" >"${HERE}/AppDirBuild/usr/share/versions/sysrescueusbwriter"
+    else
+        # we don't have a tag, use a shortened commit id
+        echo "git-${COMMIT_ID:0:8}" >"${HERE}/AppDirBuild/usr/share/versions/sysrescueusbwriter"
+    fi
+else
+    # unkown version
+    echo "???????" >"${HERE}/AppDirBuild/usr/share/versions/sysrescueusbwriter"
+fi
 
 link_license()
 {
