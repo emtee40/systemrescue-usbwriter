@@ -19,8 +19,8 @@ repodir="$(realpath ${curdir}/..)"
 echo "curdir=${curdir}"
 echo "repodir=${repodir}"
 
-# Run a shell in the container from which to build packages 
-"$DOCKER_CMD" run --rm --user 0:0 --privileged -it --workdir /workspace \
+# Run a shell in the container from which to build packages
+"$DOCKER_CMD" run --rm --user 0:0 --privileged -it --workdir /root/workspace \
     --cap-add SYS_ADMIN --device /dev/fuse \
-    --volume=${repodir}:/workspace \
-    ${dockerimg} /usr/bin/bash -x /workspace/build.sh "$@"
+    --volume=${repodir}:/root/workspace \
+    ${dockerimg} /usr/bin/bash -x -c "git config --global --add safe.directory /root/workspace && /root/workspace/build.sh \"$@\""
