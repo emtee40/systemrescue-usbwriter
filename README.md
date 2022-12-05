@@ -93,6 +93,22 @@ AppImage upstream is working on reducing these dependencies, see [#877](https://
 
 Viewing the embedded license files requires `less` to be in the $PATH.
 
+### Version compatibility
+
+To successfully create bootable USB media, SystemRescue USB writer must use the exact same version of syslinux that was
+used to build SystemRescue. Also SystemRescue USB writer must be adapted to the directory layout used by SystemRescue.
+That means one version of SystemRescue USB writer is just compatible with a limited set of SystemRescue versions.
+
+| SystemRescue version   | SystemRescue USB writer version                                                  |
+| ---------------------- |----------------------------------------------------------------------------------|
+| 7.00 - 9.04            | compatibility likely, not tested                                                 |
+| >= 9.05                | compatible with version 1.0.x                                                    |
+
+SystemRescue USB writer is able to automatically check compatibility and will print an error message if it is not compatible
+with a given iso image.
+
+Since i686 architecture releases of SystemRescue are deprecated, SystemRescue USB writer was only developed for 
+the x86_64 architecture.
 
 ### Screenshots
 
