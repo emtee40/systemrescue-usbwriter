@@ -20,7 +20,10 @@ export LC_ALL=C
 
 print_version()
 {
-    cat "${APPDIR}/usr/share/versions/sysrescueusbwriter"
+    VERSION=$("${BINDIR}/cat" "${APPDIR}/usr/share/versions/sysrescueusbwriter")
+    BUILDDATE=$("${BINDIR}/cat" "${APPDIR}/usr/share/versions/sysrescueusbwriter-builddate")
+
+    echo "${VERSION} (built: ${BUILDDATE})"
 }
 
 print_help()
@@ -269,7 +272,7 @@ check_iso()
     CHKSUMOUT=$("${BINDIR}/checkisomd5" "$ISOIMAGE" 2>&1) || exitcode=$?
     if [[ "$exitcode" -ne 0 ]]; then
         # checksum either not there or not matching
-        if ! echo "$CHKSUMOUT" | grep -q "No checksum information available"; then
+        if ! echo "$CHKSUMOUT" | "${BINDIR}/grep" -q "No checksum information available"; then
             echo "ERROR: MD5 checksum implanted in $ISOIMAGE does not match"
             exit 3
         fi
@@ -304,19 +307,19 @@ check_compatibility()
         # from SystemRescue version 9.06 onwards we have the imageinfo file
         # if it exists then only use it
         
-        if ! grep -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | grep -q "ARCH=x86_64"; then
+        if ! "${BINDIR}/grep" -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | "${BINDIR}/grep" -q "ARCH=x86_64"; then
             echo "ERROR: architecture of the iso image not compatible with this script"
             exit 3
         fi
         
-        local OUR_SYSLINUX_VER=$(cat "${APPDIR}/usr/share/versions/syslinux")
-        if ! grep -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | grep -q "SYSLINUX_VERSION=${OUR_SYSLINUX_VER}\$"; then
+        local OUR_SYSLINUX_VER=$("${BINDIR}/cat" "${APPDIR}/usr/share/versions/syslinux")
+        if ! "${BINDIR}/grep" -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | "${BINDIR}/grep" -q "SYSLINUX_VERSION=${OUR_SYSLINUX_VER}\$"; then
             echo "ERROR: syslinux used in the iso image not compatible with this script"
             echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
             exit 3
         fi
         
-        if ! grep -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | grep -q "FORMAT_EPOCH=1\$"; then
+        if ! "${BINDIR}/grep" -v "^#" "${TMPDIR}/filesystem/sysresccd/.imageinfo" | "${BINDIR}/grep" -q "FORMAT_EPOCH=1\$"; then
             echo "ERROR: format epoch used in the iso image not compatible with this script"
             echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
             exit 3
@@ -329,7 +332,7 @@ check_compatibility()
             echo "ERROR: iso image is not compatible with this script. Is this SystemRescue at all?"
             exit 3
         fi
-        local ver=$(cat "${TMPDIR}/filesystem/sysresccd/VERSION")
+        local ver=$("${BINDIR}/cat" "${TMPDIR}/filesystem/sysresccd/VERSION")
             
         if ! [[ -f "${TMPDIR}/filesystem/sysresccd/x86_64/airootfs.sfs" ]] || \
            ! [[ -f "${TMPDIR}/filesystem/sysresccd/pkglist.x86_64.txt" ]]; then
@@ -337,8 +340,8 @@ check_compatibility()
             exit 3
         fi
 
-        local OUR_SYSLINUX_VER=$(cat "${APPDIR}/usr/share/versions/syslinux")
-        if ! grep -q "syslinux ${OUR_SYSLINUX_VER}\$" "${TMPDIR}/filesystem/sysresccd/pkglist.x86_64.txt" ; then
+        local OUR_SYSLINUX_VER=$("${BINDIR}/cat" "${APPDIR}/usr/share/versions/syslinux")
+        if ! "${BINDIR}/grep" -q "syslinux ${OUR_SYSLINUX_VER}\$" "${TMPDIR}/filesystem/sysresccd/pkglist.x86_64.txt" ; then
             echo "ERROR: syslinux used in the iso image not compatible with this script"
             echo "Please look for a version of this script dedicated for your version of the SystemRescue image."
             exit 3
@@ -509,7 +512,7 @@ select_targetdev()
         fi
         
         # don't show vendor if it is contained in the model too
-        if echo "$MODEL" | grep -i -q "$VENDOR" ; then
+        if echo "$MODEL" | "${BINDIR}/grep" -i -q "$VENDOR" ; then
             VENDOR=""
         fi
 
