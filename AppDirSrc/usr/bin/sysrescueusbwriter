@@ -13,6 +13,11 @@ BINDIR="${APPDIR}/usr/bin"
 # abort on failures
 set -o errexit -o pipefail -o noclobber -o nounset
 
+# run without i18n or other locales
+# the script relies on exact wording for output parsing in some places (e.g. xorriso or checkisomd5)
+export LANG=C
+export LC_ALL=C
+
 print_version()
 {
     cat "${APPDIR}/usr/share/versions/sysrescueusbwriter"
@@ -253,6 +258,10 @@ check_iso()
     fi
 
     declare -g ISOSIZE=$("${BINDIR}/stat" -c %s "$ISOIMAGE")
+    if ! [[ "$ISOSIZE" =~ ^[0-9]+$ ]] ; then
+        echo "ERROR: can't determine iso image size ($ISOSIZE)"
+        exit 3
+    fi
     
     # check md5 checksum that might be embedded in the iso
     # ignore if it is missing but abort if present but not matching
@@ -672,7 +681,12 @@ create_tmpdir()
     fi
     
     # check free space on temp dir
-    TMPSPACE=$("${BINDIR}/df" --block-size=1 --output=avail "$TMPDIR" | "${BINDIR}/grep" -v "Avail")
+    TMPSPACE=$("${BINDIR}/df" --block-size=1 --output=avail "$TMPDIR" | "${BINDIR}/tail" -n 1)
+    if ! [[ "$TMPSPACE" =~ ^[0-9]+$ ]] ; then
+        echo "ERROR: can't determine free space on $TMPDIR ($TMPSPACE)"
+        exit 2
+    fi
+
     # require gracious 50 MB tolerance to account for filesystem metadata and inefficiency
     if [[ "${TMPSPACE}" -lt $[$ISOSIZE+52428800] ]]; then
         echo "ERROR: not enough space on $TMPDIR"

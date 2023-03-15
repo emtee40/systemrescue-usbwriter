@@ -48,6 +48,7 @@ required_pkgs=(
     grep
     isomd5sum
     libburn
+    libcap
     libisoburn
     libisofs
     libtool
@@ -133,6 +134,7 @@ busybox_symlinks=(
     stat
     stty
     sync
+    tail
 )
 
 for bin in "${busybox_symlinks[@]}"; do
@@ -158,6 +160,7 @@ install_libs=(
     libblkid
     libburn
     libc
+    libcap
     libdialog
     libdl
     libfdisk
@@ -394,6 +397,7 @@ link_license "libburn" "GPL-2.0-or-later"
 link_license "gcc-libs" "GPL-3.0-or-later"
 link_license "libisofs" "GPL-2.0-or-later"
 link_license "readline" "GPL-3.0-or-later"
+link_license "libcap" "GPL-2.0-only"
 
 # this doesn't use the Arch package name but the library name because
 # libudev is LGPL-2.1-or-later while other parts of systemd-libs are licensed differently
