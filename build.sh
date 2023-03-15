@@ -298,9 +298,11 @@ done
 # copy gconv data for codepage 850 (dos default for FAT)
 mkdir -p "${HERE}/AppDirBuild/usr/lib/gconv/gconv-modules.d"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/IBM850.so "${HERE}/AppDirBuild/usr/lib/gconv/"
+cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/ISO8859-1.so "${HERE}/AppDirBuild/usr/lib/gconv/"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/gconv-modules "${HERE}/AppDirBuild/usr/lib/gconv/"
 cp --no-dereference --preserve=links,mode,ownership,timestamps /usr/lib/gconv/gconv-modules.d/gconv-modules-extra.conf "${HERE}/AppDirBuild/usr/lib/gconv/gconv-modules.d"
 patchelf --set-rpath "\$ORIGIN/.." --force-rpath "${HERE}/AppDirBuild/usr/lib/gconv/IBM850.so"
+patchelf --set-rpath "\$ORIGIN/.." --force-rpath "${HERE}/AppDirBuild/usr/lib/gconv/ISO8859-1.so"
 
 # copy terminfo data for ncurses
 cp --no-dereference -r --preserve=links,mode,ownership,timestamps /usr/share/terminfo/ "${HERE}/AppDirBuild/usr/share/"
