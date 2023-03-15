@@ -13,6 +13,11 @@ BINDIR="${APPDIR}/usr/bin"
 # abort on failures
 set -o errexit -o pipefail -o noclobber -o nounset
 
+# run without i18n or other locales
+# the script relies on exact wording for output parsing in some places (e.g. xorriso or checkisomd5)
+export LANG=C
+export LC_ALL=C
+
 print_version()
 {
     cat "${APPDIR}/usr/share/versions/sysrescueusbwriter"
