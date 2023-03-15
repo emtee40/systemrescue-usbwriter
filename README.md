@@ -144,6 +144,23 @@ These scripts call the `docker` command from your `$PATH` by default. But you ca
 environment variable to override that. This allows you for example to use podman instead of docker:
 `DOCKER_CMD=podman ./docker/build-docker-image.sh`.
 
+### Package sources
+
+During the build process (see above) appimagetool copies and packs the required binaries from the build
+environment. These binaries are taken from Arch Linux as packaged by them. If you want to build
+these packages from source, read the [Arch Build System Documentation](https://wiki.archlinux.org/title/Arch_Build_System)
+first.
+
+Download the desired PKGBUILD file from https://github.com/archlinux/svntogit-packages
+Make sure to use the correct branch and version. If you want to rebuild a package as used in a
+specific version of sysrescueusbwriter, use the package version that was current at the time
+sysrescueusbwriter was build (see the `--version` option).
+
+When you have the correct PKGBUILD file, run `makepkg` to build. By default this will automatically 
+download the required source files from the upstream project. Alternatively Arch Linux publishes 
+these sources at `https://archive.archlinux.org/repos/<date>/sources/`. Use the date corresponding 
+to the date of the PKGBUILD you are using.
+
 ### Licensing
 
 The SystemRescue USB writer scripts (and helper scripts) themselves are licensed `GPL-3.0-or-later`.
