@@ -20,7 +20,10 @@ export LC_ALL=C
 
 print_version()
 {
-    cat "${APPDIR}/usr/share/versions/sysrescueusbwriter"
+    VERSION=$(cat "${APPDIR}/usr/share/versions/sysrescueusbwriter")
+    BUILDDATE=$(cat "${APPDIR}/usr/share/versions/sysrescueusbwriter-builddate")
+
+    echo "${VERSION} (built: ${BUILDDATE})"
 }
 
 print_help()

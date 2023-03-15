@@ -330,6 +330,9 @@ else
     echo "???????" >"${HERE}/AppDirBuild/usr/share/versions/sysrescueusbwriter"
 fi
 
+# store build date too since it is helpful in determining exact package versions embedded
+date +%Y-%m-%d >"${HERE}/AppDirBuild/usr/share/versions/sysrescueusbwriter-builddate"
+
 link_license()
 {
     local PROG=$1
