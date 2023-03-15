@@ -134,6 +134,7 @@ busybox_symlinks=(
     stat
     stty
     sync
+    tail
 )
 
 for bin in "${busybox_symlinks[@]}"; do
