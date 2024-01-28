@@ -102,7 +102,8 @@ That means one version of SystemRescue USB writer is just compatible with a limi
 | SystemRescue version   | SystemRescue USB writer version                                                  |
 | ---------------------- |----------------------------------------------------------------------------------|
 | 7.00 - 9.04            | compatibility likely, not tested                                                 |
-| >= 9.05                | compatible with version 1.0.x                                                    |
+| 9.05 - 10.02           | compatible with version 1.0.0 - 1.0.2                                            |
+| >= 11.00               | compatible with version 1.0.3                                                    |
 
 SystemRescue USB writer is able to automatically check compatibility and will print an error message if it is not compatible
 with a given iso image.
